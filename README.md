@@ -182,10 +182,19 @@ RUGC is the first system designed for **actual cognition**, not statistical fitt
 ✅ Implement resonance modes for semantic propagation
 ✅ Multi-sense disambiguation through field interference
 
-### Phase 3: Deterministic Parallelism (Planned)
+### Phase 3: Deterministic Parallelism (In Progress)
+✅ Deterministic scheduler/evaluator contradiction-resolution handoff
+✅ Reproducible task scheduling
 - Lock-free constraint resolution
-- Reproducible task scheduling
 - Parallel reasoning without non-determinism
+
+### Phase 3 Acceptance Gates (Enforced in Tests/CI)
+- Gate A: Full constraint-to-closure pipeline hash is identical across worker counts
+- Gate B: Full pipeline hash is identical across repeated runs
+- Gate C: Canonicalized audit traces are byte-stable for replay
+- Gate D: Parallel contradiction resolution outputs deterministic resolved constraints
+
+These gates are asserted in `tests/phase3_acceptance.rs` and run in CI.
 
 ### Phase 4: Cross-Lingual Auditing (Planned)
 - Canonical token normalization across languages

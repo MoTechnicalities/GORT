@@ -48,6 +48,7 @@ pub mod cognition {
     pub use constraint::SemanticConstraint;
     pub use evaluator::ConstraintStatus;
     pub use evaluator::DisambiguationDecision;
+    pub use evaluator::ParallelResolutionSummary;
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
     pub use node::{CognitiveFrame, SemanticNode};
@@ -74,7 +75,8 @@ pub use geom::{
 };
 pub use cognition::{
     CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
-    ScheduledTask, SemanticConstraint, SemanticNode, SenseInterferenceScore, TaskScheduler,
+    ParallelResolutionSummary, ScheduledTask, SemanticConstraint, SemanticNode,
+    SenseInterferenceScore, TaskScheduler,
 };
 pub use runtime::{AuditLogger, DeterminismVerifier, DeterministicRuntime};
 

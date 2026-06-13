@@ -10,7 +10,7 @@ pub enum ConstraintKind {
     Link,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SemanticConstraint {
     pub subject: String,
     pub predicate: String,

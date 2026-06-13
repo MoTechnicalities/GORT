@@ -3,6 +3,7 @@
 
 use crate::cognition::constraint::SemanticConstraint;
 use crate::cognition::node::SemanticNode;
+use crate::cognition::scheduler::{ScheduledTask, TaskScheduler};
 use crate::geom::field::{FieldPoint, SemanticField};
 use crate::geom::invariants::{ConstraintEvaluator, InvariantViolation};
 use crate::geom::mode::{ArithmeticMode, ResonanceMode, ResonanceTransform};
@@ -30,6 +31,15 @@ pub struct DisambiguationDecision {
     pub score_gap: i64,
     pub unresolved: bool,
     pub candidates: Vec<SenseInterferenceScore>,
+}
+
+type ConstraintKey = (String, String, Option<String>);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParallelResolutionSummary {
+    pub worker_count: usize,
+    pub groups_processed: usize,
+    pub conflicts_resolved: usize,
 }
 
 #[derive(Debug, Default)]
@@ -175,6 +185,157 @@ impl ConstraintEvalEngine {
             unresolved,
             candidates: scored,
         })
+    }
+
+    /// Deterministic parallel contradiction resolution path.
+    ///
+    /// The scheduler determines a reproducible work-stealing order, then each
+    /// key-group is reduced in deterministic parallel order. Contradictions are
+    /// resolved by aggregate weight, with deterministic tie-breaking.
+    pub fn resolve_contradictions_parallel_deterministic(
+        &self,
+        constraints: &[SemanticConstraint],
+        scheduler: &TaskScheduler,
+        worker_count: usize,
+        audit_trail: &mut Vec<String>,
+    ) -> Result<(Vec<SemanticConstraint>, ParallelResolutionSummary), InvariantViolation> {
+        let workers = worker_count.max(1);
+        if constraints.is_empty() {
+            let summary = ParallelResolutionSummary {
+                worker_count: workers,
+                groups_processed: 0,
+                conflicts_resolved: 0,
+            };
+            audit_trail.push("parallel contradiction resolution: no constraints".to_string());
+            return Ok((Vec::new(), summary));
+        }
+
+        let scheduled: Vec<ScheduledTask<SemanticConstraint>> = constraints
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(idx, c)| ScheduledTask {
+                id: (idx as u64) + 1,
+                payload: c,
+            })
+            .collect();
+
+        let ordered_constraints =
+            scheduler.run_work_stealing_deterministic(scheduled, workers, |task| task.payload.clone());
+
+        let mut grouped: BTreeMap<ConstraintKey, Vec<SemanticConstraint>> = BTreeMap::new();
+        for c in ordered_constraints {
+            grouped.entry(c.key()).or_default().push(c);
+        }
+
+        let grouped_tasks: Vec<ScheduledTask<(ConstraintKey, Vec<SemanticConstraint>)>> = grouped
+            .into_iter()
+            .enumerate()
+            .map(|(idx, entry)| ScheduledTask {
+                id: (idx as u64) + 1,
+                payload: entry,
+            })
+            .collect();
+
+        let reduced = scheduler.run_deterministic(grouped_tasks, |task| {
+            let (key, entries) = &task.payload;
+            Self::reduce_group(key, entries)
+        });
+
+        let mut resolved = Vec::with_capacity(reduced.len());
+        let mut resolved_conflicts = Vec::new();
+        for (constraint, conflict_msg) in reduced {
+            resolved.push(constraint);
+            if let Some(msg) = conflict_msg {
+                resolved_conflicts.push(msg);
+            }
+        }
+
+        resolved.sort_by(|a, b| {
+            a.subject
+                .cmp(&b.subject)
+                .then(a.predicate.cmp(&b.predicate))
+                .then(a.object.cmp(&b.object))
+                .then(a.affirmed.cmp(&b.affirmed))
+                .then(a.weight.cmp(&b.weight))
+        });
+
+        let summary = ParallelResolutionSummary {
+            worker_count: workers,
+            groups_processed: resolved.len(),
+            conflicts_resolved: resolved_conflicts.len(),
+        };
+
+        audit_trail.push(format!(
+            "parallel contradiction resolution groups={} conflicts_resolved={}",
+            summary.groups_processed, summary.conflicts_resolved
+        ));
+        for msg in resolved_conflicts {
+            audit_trail.push(msg);
+        }
+
+        Ok((resolved, summary))
+    }
+
+    fn reduce_group(
+        key: &ConstraintKey,
+        group: &[SemanticConstraint],
+    ) -> (SemanticConstraint, Option<String>) {
+        let mut affirmed = Vec::new();
+        let mut negated = Vec::new();
+
+        for c in group {
+            if c.affirmed {
+                affirmed.push(c.clone());
+            } else {
+                negated.push(c.clone());
+            }
+        }
+
+        let affirmed_weight: u16 = affirmed.iter().map(|c| c.weight as u16).sum();
+        let negated_weight: u16 = negated.iter().map(|c| c.weight as u16).sum();
+        let has_conflict = !affirmed.is_empty() && !negated.is_empty();
+
+        let choose_affirmed = match affirmed_weight.cmp(&negated_weight) {
+            std::cmp::Ordering::Greater => true,
+            std::cmp::Ordering::Less => false,
+            std::cmp::Ordering::Equal => true,
+        };
+
+        let selected_pool = if choose_affirmed { &affirmed } else { &negated };
+        let mut sorted_pool = selected_pool.clone();
+        sorted_pool.sort_by(|a, b| {
+            b.weight
+                .cmp(&a.weight)
+                .then(a.subject.cmp(&b.subject))
+                .then(a.predicate.cmp(&b.predicate))
+                .then(a.object.cmp(&b.object))
+        });
+
+        let mut chosen = sorted_pool.first().cloned().unwrap_or_else(|| group[0].clone());
+        if has_conflict {
+            let selected_total = if choose_affirmed {
+                affirmed_weight
+            } else {
+                negated_weight
+            };
+            chosen.weight = selected_total.min(u8::MAX as u16) as u8;
+        }
+
+        let conflict_msg = if has_conflict {
+            Some(format!(
+                "resolved conflict on {}:{} -> polarity={} (affirmed_weight={}, negated_weight={})",
+                key.0,
+                key.1,
+                if choose_affirmed { "affirmed" } else { "negated" },
+                affirmed_weight,
+                negated_weight
+            ))
+        } else {
+            None
+        };
+
+        (chosen, conflict_msg)
     }
 }
 
@@ -378,5 +539,32 @@ mod tests {
             .disambiguate_subject_senses_with_margin(&field, "light", 5000)
             .expect("expected candidates");
         assert!(tolerant.unresolved);
+    }
+
+    #[test]
+    fn parallel_resolution_is_worker_invariant() {
+        let engine = ConstraintEvalEngine::new();
+        let scheduler = TaskScheduler::new();
+        let constraints = vec![
+            SemanticConstraint::assertion("light", "wave", true, 90),
+            SemanticConstraint::assertion("light", "wave", false, 30),
+            SemanticConstraint::assertion("vacuum", "has_medium", false, 80),
+            SemanticConstraint::assertion("vacuum", "has_medium", true, 20),
+            SemanticConstraint::assertion("light", "particle", true, 88),
+        ];
+
+        let mut audit_a = Vec::new();
+        let mut audit_b = Vec::new();
+        let (a, sa) = engine
+            .resolve_contradictions_parallel_deterministic(&constraints, &scheduler, 1, &mut audit_a)
+            .expect("parallel resolve should succeed");
+        let (b, sb) = engine
+            .resolve_contradictions_parallel_deterministic(&constraints, &scheduler, 6, &mut audit_b)
+            .expect("parallel resolve should succeed");
+
+        assert_eq!(a, b);
+        assert_eq!(sa.groups_processed, sb.groups_processed);
+        assert_eq!(sa.conflicts_resolved, sb.conflicts_resolved);
+        assert_eq!(sa.conflicts_resolved, 2);
     }
 }

@@ -9,8 +9,10 @@ fn main() {
     // 1) Constraints
     let constraints = vec![
         SemanticConstraint::assertion("light", "wave", true, 92),
+        SemanticConstraint::assertion("light", "wave", false, 30),
         SemanticConstraint::assertion("light", "particle", true, 88),
         SemanticConstraint::assertion("vacuum", "has_medium", false, 74),
+        SemanticConstraint::assertion("vacuum", "has_medium", true, 20),
     ];
     println!("1. Constraints loaded: {}", constraints.len());
 
@@ -29,9 +31,21 @@ fn main() {
     let scheduled_ids = scheduler.run_work_stealing_deterministic(scheduled, 3, |task| task.id);
     println!("   Work-stealing order: {:?}", scheduled_ids);
 
-    // 2) Constraints -> Nodes
     let engine = ConstraintEvalEngine::new();
-    let nodes = engine.constraints_to_nodes(&constraints);
+    let mut contradiction_audit = Vec::new();
+    let (resolved_constraints, summary) = engine
+        .resolve_contradictions_parallel_deterministic(&constraints, &scheduler, 3, &mut contradiction_audit)
+        .expect("phase2 contradiction resolution should succeed");
+    println!(
+        "   Parallel contradiction resolution: groups={}, conflicts_resolved={}",
+        summary.groups_processed, summary.conflicts_resolved
+    );
+    for line in contradiction_audit {
+        println!("   audit: {}", line);
+    }
+
+    // 2) Constraints -> Nodes
+    let nodes = engine.constraints_to_nodes(&resolved_constraints);
     println!("2. Nodes generated: {}", nodes.len());
 
     // 3) Nodes -> Field
