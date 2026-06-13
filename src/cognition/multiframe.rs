@@ -2265,6 +2265,288 @@ pub fn select_goal_directed_trajectory(
     })
 }
 
+// ─── Phase 5.6: Multi-Goal Arbitration & Internal Conflict Resolution ────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoalSet {
+    pub goals: Vec<GoalAttractor>,
+    /// Relative weights by region_id; higher = more important
+    pub priority_weights: BTreeMap<String, i64>,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConflictGradient {
+    pub region_id: String,
+    /// Combined demand from all goals pointing at this region
+    pub total_pull: i64,
+    /// Pull from the single highest-priority goal
+    pub dominant_pull: i64,
+    /// Interference = total_pull spread across competing goals
+    pub interference: i64,
+    /// >0 means goals reinforce; <0 means goals conflict
+    pub coherence_score: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArbitratedIntentField {
+    pub goal_set: GoalSet,
+    pub conflict_gradients: Vec<ConflictGradient>,
+    pub dominant_goal_region: String,
+    pub arbitration_confidence: i64,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConflictResolvedTrajectory {
+    pub selected_path: Vec<String>,
+    pub deferred_goals: Vec<String>,
+    pub conflict_cost: i64,
+    pub arbitration_efficiency: i64,
+    pub convergent: bool,
+    pub canonical_hash: String,
+}
+
+pub fn build_goal_set(
+    intent_fields: &[IntentField],
+    base_weights: &BTreeMap<String, i64>,
+) -> Result<GoalSet, InvariantViolation> {
+    // Merge all goal attractors across intent fields, accumulating weights.
+    let mut merged: BTreeMap<String, (GoalAttractor, i64)> = BTreeMap::new();
+
+    for intent in intent_fields {
+        for goal in &intent.goal_attractors {
+            let base_weight = base_weights.get(&goal.region_id).copied().unwrap_or(100);
+            let entry = merged
+                .entry(goal.region_id.clone())
+                .or_insert((goal.clone(), 0));
+            entry.1 += goal.goal_weight + base_weight;
+        }
+    }
+
+    let mut goals: Vec<GoalAttractor> = merged
+        .values()
+        .map(|(g, accumulated)| GoalAttractor {
+            region_id: g.region_id.clone(),
+            goal_weight: *accumulated,
+            preferred_energy_ceiling: g.preferred_energy_ceiling,
+            persistence_preference: g.persistence_preference,
+        })
+        .collect();
+    goals.sort_by(|a, b| {
+        b.goal_weight
+            .cmp(&a.goal_weight)
+            .then_with(|| a.region_id.cmp(&b.region_id))
+    });
+
+    let mut priority_weights: BTreeMap<String, i64> = base_weights.clone();
+    for g in &goals {
+        priority_weights
+            .entry(g.region_id.clone())
+            .or_insert(100);
+    }
+
+    let canonical_hash = hash_json(&(&goals, &priority_weights))?;
+
+    Ok(GoalSet {
+        goals,
+        priority_weights,
+        canonical_hash,
+    })
+}
+
+pub fn compute_conflict_gradients(
+    goal_set: &GoalSet,
+    potential_field: &CognitivePotentialField,
+) -> Result<Vec<ConflictGradient>, InvariantViolation> {
+    // For each region in the potential field, compute conflict analysis across goals.
+    let mut gradients: Vec<ConflictGradient> = potential_field
+        .stability_energies
+        .iter()
+        .map(|energy| {
+            let goal_pulls: Vec<i64> = goal_set
+                .goals
+                .iter()
+                .filter(|g| g.region_id == energy.region_id)
+                .map(|g| g.goal_weight)
+                .collect();
+
+            let total_pull: i64 = goal_pulls.iter().sum();
+            let dominant_pull: i64 = goal_pulls.iter().copied().max().unwrap_or(0);
+            let goal_count = goal_pulls.len() as i64;
+
+            // Interference: how spread demand is across multiple competing goals
+            let interference = if goal_count > 1 {
+                (total_pull - dominant_pull).max(0)
+            } else {
+                0
+            };
+
+            // Coherence: positive if a single strong goal dominates; negative if fragmented
+            let coherence_score = if goal_count == 0 {
+                0
+            } else if goal_count == 1 {
+                dominant_pull
+            } else {
+                dominant_pull - interference
+            };
+
+            ConflictGradient {
+                region_id: energy.region_id.clone(),
+                total_pull,
+                dominant_pull,
+                interference,
+                coherence_score,
+            }
+        })
+        .collect();
+
+    gradients.sort_by(|a, b| {
+        b.coherence_score
+            .cmp(&a.coherence_score)
+            .then_with(|| a.region_id.cmp(&b.region_id))
+    });
+
+    Ok(gradients)
+}
+
+pub fn arbitrate_intent_field(
+    intent_fields: &[IntentField],
+    potential_field: &CognitivePotentialField,
+    base_weights: &BTreeMap<String, i64>,
+) -> Result<ArbitratedIntentField, InvariantViolation> {
+    let goal_set = build_goal_set(intent_fields, base_weights)?;
+    let conflict_gradients = compute_conflict_gradients(&goal_set, potential_field)?;
+
+    let dominant_goal_region = goal_set
+        .goals
+        .first()
+        .map(|g| g.region_id.clone())
+        .unwrap_or_default();
+
+    // Arbitration confidence: reduced by total interference across all regions
+    let total_interference: i64 = conflict_gradients.iter().map(|g| g.interference).sum();
+    let arbitration_confidence =
+        (1000 - (total_interference / (conflict_gradients.len().max(1) as i64 * 10)).min(500))
+            .max(0);
+
+    let canonical_hash = hash_json(&(
+        &goal_set.canonical_hash,
+        &conflict_gradients,
+        &dominant_goal_region,
+        &arbitration_confidence,
+    ))?;
+
+    Ok(ArbitratedIntentField {
+        goal_set,
+        conflict_gradients,
+        dominant_goal_region,
+        arbitration_confidence,
+        canonical_hash,
+    })
+}
+
+pub fn resolve_trajectory(
+    arbitrated: &ArbitratedIntentField,
+    potential_field: &CognitivePotentialField,
+    current_region: &str,
+) -> Result<ConflictResolvedTrajectory, InvariantViolation> {
+    let potential_by_region: BTreeMap<String, i64> = potential_field
+        .stability_energies
+        .iter()
+        .map(|e| (e.region_id.clone(), e.potential))
+        .collect();
+
+    // Score each candidate destination by: coherence - conflict_cost + goal_weight_bonus
+    let mut candidates: Vec<(String, i64, i64)> = Vec::new(); // (region, score, conflict_cost)
+
+    for cg in &arbitrated.conflict_gradients {
+        if cg.region_id == current_region {
+            continue;
+        }
+        // Only target reachable (gradient-connected) regions
+        let reachable = potential_field
+            .gradients
+            .iter()
+            .any(|g| g.source_region == current_region && g.target_region == cg.region_id);
+        if !reachable {
+            continue;
+        }
+
+        let target_potential = *potential_by_region.get(&cg.region_id).unwrap_or(&1000);
+        let source_potential = *potential_by_region.get(current_region).unwrap_or(&1000);
+        let energy_gain = (source_potential - target_potential).max(0);
+        let goal_weight = arbitrated
+            .goal_set
+            .priority_weights
+            .get(&cg.region_id)
+            .copied()
+            .unwrap_or(0);
+
+        let score = cg.coherence_score + energy_gain + goal_weight - cg.interference;
+        let conflict_cost = cg.interference;
+
+        if score > 0 {
+            candidates.push((cg.region_id.clone(), score, conflict_cost));
+        }
+    }
+
+    candidates.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+    // Deferred goals: high-scoring goals that weren't the chosen path
+    let dominant_target = arbitrated.dominant_goal_region.clone();
+    let (selected_path, conflict_cost) = if let Some((region, _, cost)) = candidates.first() {
+        (
+            vec![current_region.to_string(), region.clone()],
+            *cost,
+        )
+    } else if !dominant_target.is_empty() && dominant_target != current_region {
+        (
+            vec![current_region.to_string(), dominant_target.clone()],
+            0,
+        )
+    } else {
+        (vec![current_region.to_string()], 0)
+    };
+
+    let chosen = selected_path.last().cloned().unwrap_or_default();
+    let deferred_goals: Vec<String> = arbitrated
+        .goal_set
+        .goals
+        .iter()
+        .map(|g| g.region_id.clone())
+        .filter(|r| *r != chosen && *r != current_region)
+        .collect();
+
+    let total_interference: i64 = arbitrated
+        .conflict_gradients
+        .iter()
+        .map(|g| g.interference)
+        .sum();
+    let arbitration_efficiency = (1000
+        - (total_interference / (arbitrated.conflict_gradients.len().max(1) as i64)).min(500))
+    .max(0);
+
+    let convergent = conflict_cost < 200 && arbitration_efficiency > 600;
+
+    let canonical_hash = hash_json(&(
+        &selected_path,
+        &deferred_goals,
+        &conflict_cost,
+        &arbitration_efficiency,
+        &arbitrated.canonical_hash,
+    ))?;
+
+    Ok(ConflictResolvedTrajectory {
+        selected_path,
+        deferred_goals,
+        conflict_cost,
+        arbitration_efficiency,
+        convergent,
+        canonical_hash,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

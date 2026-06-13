@@ -56,6 +56,9 @@ jobs:
       - name: Enforce Phase 5.5 acceptance gates
         run: cargo test --test phase55_intent_goal
 
+      - name: Enforce Phase 5.6 acceptance gates
+        run: cargo test --test phase56_multi_goal
+
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
 
@@ -91,3 +94,6 @@ jobs:
 
       - name: Validate cognitive intent & goal formation demo
         run: cargo run --example phase55_intent_goal --quiet
+
+      - name: Validate multi-goal arbitration demo
+        run: cargo run --example phase56_multi_goal --quiet

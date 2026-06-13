@@ -74,3 +74,7 @@ path = "examples/phase54_energy_action.rs"
 [[example]]
 name = "phase55_intent_goal"
 path = "examples/phase55_intent_goal.rs"
+
+[[example]]
+name = "phase56_multi_goal"
+path = "examples/phase56_multi_goal.rs"

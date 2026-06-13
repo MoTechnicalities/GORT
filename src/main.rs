@@ -21,4 +21,5 @@ fn main() {
     println!("  cargo run --example phase53_flow_fields");
     println!("  cargo run --example phase54_energy_action");
     println!("  cargo run --example phase55_intent_goal");
+    println!("  cargo run --example phase56_multi_goal");
 }

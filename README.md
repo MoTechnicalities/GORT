@@ -232,6 +232,12 @@ Phase 5.5 cognitive intent & goal formation demo:
 cargo run --example phase55_intent_goal
 ```
 
+Phase 5.6 multi-goal arbitration demo:
+
+```bash
+cargo run --example phase56_multi_goal
+```
+
 ### Run Tests
 
 ```bash
@@ -469,10 +475,27 @@ These gates are asserted in `tests/phase54_energy_action.rs` and run in CI.
 
 These gates are asserted in `tests/phase55_intent_goal.rs` and run in CI.
 
-### Phase 5.6: Predictive Cognitive Dynamics (Planned)
-- Trajectory extrapolation from intent-shaped energy fields to predict next topology
-- Long-horizon cognitive forecasting with drift, energy, and intent budgeting
-- Phase 6 bridge: anticipatory reasoning and intentional cognitive dynamics
+### Phase 5.6: Multi-Goal Arbitration & Internal Conflict Resolution (In Progress)
+✅ GoalSet — structured set of simultaneous goals merged from multiple intent fields
+✅ GoalPriorityWeights — relative importance weights per goal region
+✅ ConflictGradient — coherence/interference analysis per region across competing goals
+✅ ArbitratedIntentField — merged intent field with dominant goal and arbitration confidence
+✅ ConflictResolvedTrajectory — chosen path that respects goal hierarchy and minimizes conflict cost
+- Multi-level goal hierarchies and meta-intent structures
+
+### Phase 5.6 Acceptance Gates (Enforced in Tests/CI)
+- Gate AO: GoalSet merges multiple intent fields and accumulates goal weights
+- Gate AP: ConflictGradients detect goal interference across competing attractors
+- Gate AQ: Arbitration produces a single dominant goal region from the goal hierarchy
+- Gate AR: Conflict resolution selects a coherent trajectory respecting goal priorities
+- Gate AS: Arbitration canonical hash is invariant across worker counts
+
+These gates are asserted in `tests/phase56_multi_goal.rs` and run in CI.
+
+### Phase 5.7: Self-Consistent Cognitive Dynamics (Planned)
+- Self-model formation from stable goal history
+- Meta-intent: goals about goal-formation itself
+- Phase 6 bridge: intentional cognitive dynamics and self-directed learning
 
 ## Integration with UGC-Model
 
