@@ -202,6 +202,12 @@ Phase 5.0 anchor-derived relational distance demo:
 cargo run --example phase50_anchor_distance
 ```
 
+Phase 5.1 emergent cognitive topology demo:
+
+```bash
+cargo run --example phase51_topology
+```
+
 ### Run Tests
 
 ```bash
@@ -357,8 +363,23 @@ These gates are asserted in `tests/phase47_emergent_concepts.rs` and run in CI.
 
 These gates are asserted in `tests/phase50_anchor_distance.rs` and run in CI.
 
-### Phase 5.1: Emergent Cognitive Geometry (Planned)
-- Promote stable relational regularities into explicit geometric coordinate structures
+### Phase 5.1: Emergent Cognitive Topology (In Progress)
+✅ Neighborhood formation — concept neighborhoods at anchor-derived distance threshold
+✅ Region detection — connected components of neighborhoods form stable manifolds
+✅ Boundary detection — concepts bridging distinct regions are topological boundaries
+✅ Cohesion scoring — intra-region compactness measured from endogenous distance
+✅ Topology-aware consolidation — canonical topology hash is replay-stable and worker-invariant
+- Topological invariant tracking across iterative memory updates
+
+### Phase 5.1 Acceptance Gates (Enforced in Tests/CI)
+- Gate T: Topology forms at least one region from anchor-aligned concept space
+- Gate U: Topology canonical hash is invariant across worker counts
+- Gate V: External perturbation produces a distinct topology signature
+
+These gates are asserted in `tests/phase51_topology.rs` and run in CI.
+
+### Phase 5.2: Emergent Cognitive Geometry (Planned)
+- Promote stable topological structures into explicit geometric coordinate systems
 - Learn geometry from anchor-preserving developmental interaction traces
 - Establish endogenous distance, topology, and transformation semantics from replay-stable histories
 

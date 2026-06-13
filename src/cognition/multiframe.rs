@@ -144,6 +144,40 @@ pub struct AnchorRelationalDistance {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopologicalNeighborhood {
+    pub center: String,
+    pub neighbors: Vec<String>,
+    pub radius: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopologicalRegion {
+    pub id: String,
+    pub members: Vec<String>,
+    pub representative: String,
+    pub boundary_members: Vec<String>,
+    pub cohesion_score: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopologyMetrics {
+    pub region_count: usize,
+    pub total_concepts: usize,
+    pub boundary_count: usize,
+    pub avg_neighborhood_size: i64,
+    pub manifold_stability: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CognitiveTopology {
+    pub neighborhoods: Vec<TopologicalNeighborhood>,
+    pub regions: Vec<TopologicalRegion>,
+    pub boundary_concepts: Vec<String>,
+    pub metrics: TopologyMetrics,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrameIterationResult {
     pub topic: String,
     pub frame_id: String,
@@ -1242,6 +1276,198 @@ fn jaccard_distance_scaled(a: &[String], b: &[String], scale: i64) -> i64 {
     let intersection = set_a.intersection(&set_b).count() as i64;
     let union = set_a.union(&set_b).count() as i64;
     ((union - intersection) * scale.max(1)) / union.max(1)
+}
+
+fn pairwise_anchor_distance(a: &str, b: &str, memory: &ConsolidatedMemory) -> i64 {
+    if a == b {
+        return 0;
+    }
+    let mut distance: i64 = 1000;
+    let a_subj = a.split_once(':').map(|(s, _)| s).unwrap_or(a);
+    let b_subj = b.split_once(':').map(|(s, _)| s).unwrap_or(b);
+    if a_subj == b_subj {
+        distance -= 400;
+    }
+    for concept in &memory.emergent_concepts {
+        let has_a = concept.basis_anchors.iter().any(|x| x == a);
+        let has_b = concept.basis_anchors.iter().any(|x| x == b);
+        if has_a && has_b {
+            distance = (distance - 200).max(0);
+        }
+    }
+    distance.max(0).min(1000)
+}
+
+fn lookup_pair_dist(dist_map: &BTreeMap<(String, String), i64>, a: &str, b: &str) -> i64 {
+    if a == b {
+        return 0;
+    }
+    let (ka, kb) = if a <= b {
+        (a.to_string(), b.to_string())
+    } else {
+        (b.to_string(), a.to_string())
+    };
+    dist_map.get(&(ka, kb)).copied().unwrap_or(1000)
+}
+
+pub fn compute_cognitive_topology(
+    memory: &ConsolidatedMemory,
+    distance_threshold: i64,
+) -> Result<CognitiveTopology, InvariantViolation> {
+    let concepts = &memory.anchor_basis_ids;
+    let threshold = distance_threshold.max(0);
+
+    if concepts.is_empty() {
+        let metrics = TopologyMetrics {
+            region_count: 0,
+            total_concepts: 0,
+            boundary_count: 0,
+            avg_neighborhood_size: 0,
+            manifold_stability: 1000,
+        };
+        let canonical_hash = hash_json(&(&Vec::<TopologicalNeighborhood>::new(), &metrics))?;
+        return Ok(CognitiveTopology {
+            neighborhoods: Vec::new(),
+            regions: Vec::new(),
+            boundary_concepts: Vec::new(),
+            metrics,
+            canonical_hash,
+        });
+    }
+
+    let mut dist_map: BTreeMap<(String, String), i64> = BTreeMap::new();
+    for a in concepts {
+        for b in concepts {
+            if a >= b {
+                continue;
+            }
+            dist_map.insert((a.clone(), b.clone()), pairwise_anchor_distance(a, b, memory));
+        }
+    }
+
+    let mut adjacency: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut neighborhoods: Vec<TopologicalNeighborhood> = Vec::new();
+
+    for center in concepts {
+        let mut neighbors: Vec<String> = Vec::new();
+        for other in concepts {
+            if other == center {
+                continue;
+            }
+            if lookup_pair_dist(&dist_map, center, other) <= threshold {
+                neighbors.push(other.clone());
+                adjacency.entry(center.clone()).or_default().insert(other.clone());
+            }
+        }
+        neighbors.sort();
+        neighborhoods.push(TopologicalNeighborhood {
+            center: center.clone(),
+            neighbors,
+            radius: threshold,
+        });
+    }
+    neighborhoods.sort_by(|a, b| a.center.cmp(&b.center));
+
+    let mut visited: BTreeSet<String> = BTreeSet::new();
+    let mut regions: Vec<TopologicalRegion> = Vec::new();
+
+    for start in concepts {
+        if visited.contains(start) {
+            continue;
+        }
+        let mut queue: Vec<String> = vec![start.clone()];
+        let mut component: BTreeSet<String> = BTreeSet::new();
+        let mut qi = 0;
+        while qi < queue.len() {
+            let node = queue[qi].clone();
+            qi += 1;
+            if !component.insert(node.clone()) {
+                continue;
+            }
+            visited.insert(node.clone());
+            if let Some(nbrs) = adjacency.get(&node) {
+                for nbr in nbrs {
+                    if !component.contains(nbr) {
+                        queue.push(nbr.clone());
+                    }
+                }
+            }
+        }
+        regions.push(TopologicalRegion {
+            id: String::new(),
+            members: component.into_iter().collect(),
+            representative: String::new(),
+            boundary_members: Vec::new(),
+            cohesion_score: 0,
+        });
+    }
+
+    let mut boundary_set: BTreeSet<String> = BTreeSet::new();
+    for region in &mut regions {
+        let region_set: BTreeSet<String> = region.members.iter().cloned().collect();
+        let mut boundary: Vec<String> = Vec::new();
+        for member in &region.members {
+            if let Some(nbrs) = adjacency.get(member) {
+                if nbrs.iter().any(|n| !region_set.contains(n)) {
+                    boundary.push(member.clone());
+                    boundary_set.insert(member.clone());
+                }
+            }
+        }
+        boundary.sort();
+        boundary.dedup();
+        region.boundary_members = boundary;
+
+        let m = region.members.clone();
+        let mut intra_sum = 0i64;
+        let mut intra_count = 0i64;
+        for i in 0..m.len() {
+            for j in (i + 1)..m.len() {
+                intra_sum += lookup_pair_dist(&dist_map, &m[i], &m[j]);
+                intra_count += 1;
+            }
+        }
+        region.cohesion_score = if intra_count == 0 {
+            1000
+        } else {
+            1000 - intra_sum / intra_count
+        };
+        region.representative = region.members.first().cloned().unwrap_or_default();
+        region.id = hash_json(&region.members)?.chars().take(16).collect();
+    }
+    regions.sort_by(|a, b| a.id.cmp(&b.id));
+
+    let boundary_concepts: Vec<String> = boundary_set.into_iter().collect();
+    let total_concepts = concepts.len();
+    let region_count = regions.len();
+    let boundary_count = boundary_concepts.len();
+    let avg_neighborhood_size = {
+        let total: i64 = neighborhoods.iter().map(|n| n.neighbors.len() as i64).sum();
+        if neighborhoods.is_empty() {
+            0
+        } else {
+            total / neighborhoods.len() as i64
+        }
+    };
+    let manifold_stability =
+        1000 - (boundary_count as i64 * 1000) / total_concepts.max(1) as i64;
+
+    let metrics = TopologyMetrics {
+        region_count,
+        total_concepts,
+        boundary_count,
+        avg_neighborhood_size,
+        manifold_stability,
+    };
+    let canonical_hash = hash_json(&(&neighborhoods, &regions, &boundary_concepts, &metrics))?;
+
+    Ok(CognitiveTopology {
+        neighborhoods,
+        regions,
+        boundary_concepts,
+        metrics,
+        canonical_hash,
+    })
 }
 
 #[cfg(test)]

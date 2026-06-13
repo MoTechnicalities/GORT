@@ -54,3 +54,7 @@ path = "examples/phase47_emergent_concepts.rs"
 [[example]]
 name = "phase50_anchor_distance"
 path = "examples/phase50_anchor_distance.rs"
+
+[[example]]
+name = "phase51_topology"
+path = "examples/phase51_topology.rs"

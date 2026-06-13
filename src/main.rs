@@ -16,4 +16,5 @@ fn main() {
     println!("  cargo run --example phase46_anchor_weighted");
     println!("  cargo run --example phase47_emergent_concepts");
     println!("  cargo run --example phase50_anchor_distance");
+    println!("  cargo run --example phase51_topology");
 }

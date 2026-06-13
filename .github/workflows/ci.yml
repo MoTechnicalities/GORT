@@ -41,6 +41,9 @@ jobs:
       - name: Enforce Phase 5.0 acceptance gates
         run: cargo test --test phase50_anchor_distance
 
+      - name: Enforce Phase 5.1 acceptance gates
+        run: cargo test --test phase51_topology
+
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
 
@@ -61,3 +64,6 @@ jobs:
 
       - name: Validate anchor-derived relational distance demo
         run: cargo run --example phase50_anchor_distance --quiet
+
+      - name: Validate emergent cognitive topology demo
+        run: cargo run --example phase51_topology --quiet
