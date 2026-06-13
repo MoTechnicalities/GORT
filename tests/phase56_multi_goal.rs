@@ -87,7 +87,7 @@ fn run_pipeline(external: bool, workers: usize) -> (
 #[test]
 fn gate_ao_goal_set_merges_multiple_intent_fields() {
     let (potential_s, intent_s, _) = run_pipeline(false, 4);
-    let (potential_p, intent_p, _) = run_pipeline(true, 4);
+    let (_potential_p, intent_p, _) = run_pipeline(true, 4);
 
     // Re-derive second intent from perturbed topology so all regions are represented
     let base_weights: BTreeMap<String, i64> = potential_s
@@ -107,7 +107,7 @@ fn gate_ao_goal_set_merges_multiple_intent_fields() {
 
 #[test]
 fn gate_ap_conflict_gradients_detect_goal_interference() {
-    let (potential_s, intent_s, _) = run_pipeline(false, 4);
+    let (_potential_s, intent_s, _) = run_pipeline(false, 4);
     let (potential_p, intent_p, _) = run_pipeline(true, 4);
 
     let base_weights: BTreeMap<String, i64> = potential_p
@@ -162,7 +162,7 @@ fn gate_aq_arbitration_produces_dominant_goal() {
 
 #[test]
 fn gate_ar_conflict_resolution_selects_coherent_trajectory() {
-    let (potential_s, intent_s, _) = run_pipeline(false, 4);
+    let (_potential_s, intent_s, _) = run_pipeline(false, 4);
     let (potential_p, intent_p, _) = run_pipeline(true, 4);
 
     let base_weights: BTreeMap<String, i64> = potential_p

@@ -2547,6 +2547,319 @@ pub fn resolve_trajectory(
     })
 }
 
+// ─── Phase 5.7: Self-Consistent Cognitive Dynamics (Meta-Intent) ────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoalHierarchy {
+    pub layers: Vec<Vec<String>>,
+    /// child_goal -> parent_goal
+    pub parent_links: BTreeMap<String, String>,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetaPreferenceGradient {
+    pub source_goal: String,
+    pub target_goal: String,
+    /// Positive means source reinforces target priority
+    pub influence: i64,
+    pub coherence_delta: i64,
+    pub conflict_delta: i64,
+    pub net_meta_pull: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SelfCoherenceMetric {
+    pub hierarchy_coherence: i64,
+    pub conflict_load: i64,
+    pub revision_pressure: i64,
+    pub temporal_stability: i64,
+    pub self_consistency: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetaIntentField {
+    pub hierarchy: GoalHierarchy,
+    pub meta_preference_gradients: Vec<MetaPreferenceGradient>,
+    pub self_coherence: SelfCoherenceMetric,
+    pub revision_candidates: Vec<String>,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetaIntentTrajectory {
+    pub selected_path: Vec<String>,
+    pub revised_goals: Vec<String>,
+    pub deferred_goals: Vec<String>,
+    pub coherence_metric: SelfCoherenceMetric,
+    pub canonical_hash: String,
+}
+
+pub fn build_goal_hierarchy(
+    arbitrated: &ArbitratedIntentField,
+) -> Result<GoalHierarchy, InvariantViolation> {
+    let mut goals: Vec<String> = arbitrated
+        .goal_set
+        .goals
+        .iter()
+        .map(|g| g.region_id.clone())
+        .collect();
+
+    goals.sort_by(|a, b| {
+        let wa = arbitrated.goal_set.priority_weights.get(a).copied().unwrap_or(0);
+        let wb = arbitrated.goal_set.priority_weights.get(b).copied().unwrap_or(0);
+        wb.cmp(&wa).then_with(|| a.cmp(b))
+    });
+
+    let mut layers: Vec<Vec<String>> = Vec::new();
+    let mut parent_links: BTreeMap<String, String> = BTreeMap::new();
+
+    if let Some(root) = goals.first() {
+        layers.push(vec![root.clone()]);
+
+        let mut second: Vec<String> = goals.iter().skip(1).take(2).cloned().collect();
+        second.sort();
+        if !second.is_empty() {
+            for child in &second {
+                parent_links.insert(child.clone(), root.clone());
+            }
+            layers.push(second);
+        }
+
+        let mut third: Vec<String> = goals.iter().skip(3).cloned().collect();
+        third.sort();
+        if !third.is_empty() {
+            let parent = layers
+                .get(1)
+                .and_then(|l| l.first())
+                .cloned()
+                .unwrap_or_else(|| root.clone());
+            for child in &third {
+                parent_links.insert(child.clone(), parent.clone());
+            }
+            layers.push(third);
+        }
+    }
+
+    let canonical_hash = hash_json(&(&layers, &parent_links))?;
+
+    Ok(GoalHierarchy {
+        layers,
+        parent_links,
+        canonical_hash,
+    })
+}
+
+pub fn compute_meta_preference_gradients(
+    arbitrated: &ArbitratedIntentField,
+    hierarchy: &GoalHierarchy,
+) -> Result<Vec<MetaPreferenceGradient>, InvariantViolation> {
+    let mut layer_index: BTreeMap<String, usize> = BTreeMap::new();
+    for (idx, layer) in hierarchy.layers.iter().enumerate() {
+        for goal in layer {
+            layer_index.insert(goal.clone(), idx);
+        }
+    }
+
+    let mut interference_by_region: BTreeMap<String, i64> = BTreeMap::new();
+    for c in &arbitrated.conflict_gradients {
+        interference_by_region.insert(c.region_id.clone(), c.interference);
+    }
+
+    let goals: Vec<String> = arbitrated
+        .goal_set
+        .goals
+        .iter()
+        .map(|g| g.region_id.clone())
+        .collect();
+
+    let mut gradients: Vec<MetaPreferenceGradient> = Vec::new();
+    for source in &goals {
+        for target in &goals {
+            if source == target {
+                continue;
+            }
+
+            let source_w = arbitrated
+                .goal_set
+                .priority_weights
+                .get(source)
+                .copied()
+                .unwrap_or(0);
+            let target_w = arbitrated
+                .goal_set
+                .priority_weights
+                .get(target)
+                .copied()
+                .unwrap_or(0);
+            let influence = source_w - target_w;
+
+            let source_layer = layer_index.get(source).copied().unwrap_or(usize::MAX);
+            let target_layer = layer_index.get(target).copied().unwrap_or(usize::MAX);
+            let coherence_delta = if source_layer < target_layer {
+                120
+            } else if source_layer == target_layer {
+                30
+            } else {
+                -60
+            };
+
+            let conflict_delta = interference_by_region.get(target).copied().unwrap_or(0) / 2;
+            let net_meta_pull = influence + coherence_delta - conflict_delta;
+
+            gradients.push(MetaPreferenceGradient {
+                source_goal: source.clone(),
+                target_goal: target.clone(),
+                influence,
+                coherence_delta,
+                conflict_delta,
+                net_meta_pull,
+            });
+        }
+    }
+
+    gradients.sort_by(|a, b| {
+        b.net_meta_pull
+            .cmp(&a.net_meta_pull)
+            .then_with(|| a.source_goal.cmp(&b.source_goal))
+            .then_with(|| a.target_goal.cmp(&b.target_goal))
+    });
+
+    Ok(gradients)
+}
+
+pub fn compute_self_coherence_metric(
+    arbitrated: &ArbitratedIntentField,
+    hierarchy: &GoalHierarchy,
+    meta_gradients: &[MetaPreferenceGradient],
+    recent_meta_hashes: &[String],
+) -> Result<SelfCoherenceMetric, InvariantViolation> {
+    let hierarchy_depth = hierarchy.layers.len() as i64;
+    let hierarchy_coherence = (1000 - (hierarchy_depth.saturating_sub(1) * 120)).clamp(0, 1000);
+
+    let conflict_load = arbitrated
+        .conflict_gradients
+        .iter()
+        .map(|g| g.interference)
+        .sum::<i64>()
+        / (arbitrated.conflict_gradients.len().max(1) as i64);
+
+    let revision_pressure = meta_gradients
+        .iter()
+        .filter(|g| g.net_meta_pull < 0)
+        .count() as i64
+        * 40;
+
+    let temporal_stability = if recent_meta_hashes.is_empty() {
+        800
+    } else {
+        let unique: BTreeSet<String> = recent_meta_hashes.iter().cloned().collect();
+        let variability = (unique.len() as i64 - 1).max(0) * 100;
+        (1000 - variability).clamp(0, 1000)
+    };
+
+    let self_consistency = ((hierarchy_coherence
+        + (1000 - conflict_load).clamp(0, 1000)
+        + (1000 - revision_pressure).clamp(0, 1000)
+        + temporal_stability)
+        / 4)
+        .clamp(0, 1000);
+
+    Ok(SelfCoherenceMetric {
+        hierarchy_coherence,
+        conflict_load,
+        revision_pressure,
+        temporal_stability,
+        self_consistency,
+    })
+}
+
+pub fn build_meta_intent_field(
+    arbitrated: &ArbitratedIntentField,
+    recent_meta_hashes: &[String],
+) -> Result<MetaIntentField, InvariantViolation> {
+    let hierarchy = build_goal_hierarchy(arbitrated)?;
+    let meta_preference_gradients = compute_meta_preference_gradients(arbitrated, &hierarchy)?;
+    let self_coherence = compute_self_coherence_metric(
+        arbitrated,
+        &hierarchy,
+        &meta_preference_gradients,
+        recent_meta_hashes,
+    )?;
+
+    let mut revision_candidates: Vec<String> = meta_preference_gradients
+        .iter()
+        .filter(|g| g.net_meta_pull < 0)
+        .map(|g| g.target_goal.clone())
+        .collect();
+    revision_candidates.sort();
+    revision_candidates.dedup();
+
+    let canonical_hash = hash_json(&(
+        &hierarchy.canonical_hash,
+        &meta_preference_gradients,
+        &self_coherence,
+        &revision_candidates,
+        &recent_meta_hashes,
+    ))?;
+
+    Ok(MetaIntentField {
+        hierarchy,
+        meta_preference_gradients,
+        self_coherence,
+        revision_candidates,
+        canonical_hash,
+    })
+}
+
+pub fn resolve_meta_intent_trajectory(
+    arbitrated: &ArbitratedIntentField,
+    potential_field: &CognitivePotentialField,
+    current_region: &str,
+    recent_meta_hashes: &[String],
+) -> Result<MetaIntentTrajectory, InvariantViolation> {
+    let base = resolve_trajectory(arbitrated, potential_field, current_region)?;
+    let meta = build_meta_intent_field(arbitrated, recent_meta_hashes)?;
+
+    let mut revised_goals = meta.revision_candidates.clone();
+
+    // If self-consistency is low, force revision of deferred goals first.
+    if meta.self_coherence.self_consistency < 600 {
+        for d in &base.deferred_goals {
+            if !revised_goals.contains(d) {
+                revised_goals.push(d.clone());
+            }
+        }
+    }
+    revised_goals.sort();
+    revised_goals.dedup();
+
+    let mut selected_path = base.selected_path.clone();
+    if selected_path.len() == 1 {
+        if let Some(root) = meta.hierarchy.layers.first().and_then(|l| l.first()) {
+            if root != &selected_path[0] {
+                selected_path.push(root.clone());
+            }
+        }
+    }
+
+    let canonical_hash = hash_json(&(
+        &selected_path,
+        &revised_goals,
+        &base.deferred_goals,
+        &meta.self_coherence,
+        &meta.canonical_hash,
+    ))?;
+
+    Ok(MetaIntentTrajectory {
+        selected_path,
+        revised_goals,
+        deferred_goals: base.deferred_goals,
+        coherence_metric: meta.self_coherence,
+        canonical_hash,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

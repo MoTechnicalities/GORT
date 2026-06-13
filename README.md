@@ -238,6 +238,12 @@ Phase 5.6 multi-goal arbitration demo:
 cargo run --example phase56_multi_goal
 ```
 
+Phase 5.7 self-consistent cognitive dynamics demo:
+
+```bash
+cargo run --example phase57_meta_intent
+```
+
 ### Run Tests
 
 ```bash
@@ -492,10 +498,27 @@ These gates are asserted in `tests/phase55_intent_goal.rs` and run in CI.
 
 These gates are asserted in `tests/phase56_multi_goal.rs` and run in CI.
 
-### Phase 5.7: Self-Consistent Cognitive Dynamics (Planned)
-- Self-model formation from stable goal history
-- Meta-intent: goals about goal-formation itself
-- Phase 6 bridge: intentional cognitive dynamics and self-directed learning
+### Phase 5.7: Self-Consistent Cognitive Dynamics (Meta-Intent) (In Progress)
+✅ GoalHierarchy — layered goal structure with deterministic parent links
+✅ MetaIntentField — intent-about-intent synthesis over arbitrated goal fields
+✅ MetaPreferenceGradient — cross-goal modulation (influence, coherence delta, conflict delta)
+✅ SelfCoherenceMetric — hierarchy coherence, revision pressure, temporal stability, self-consistency
+✅ MetaIntentTrajectory — recursive trajectory selection with goal revision under coherence pressure
+- Self-model formation from long-horizon meta-intent history
+
+### Phase 5.7 Acceptance Gates (Enforced in Tests/CI)
+- Gate AT: MetaIntentField forms hierarchy and coherence metrics from arbitrated goals
+- Gate AU: MetaPreferenceGradients capture inter-goal modulation effects
+- Gate AV: Self-coherence decreases under external perturbation pressure
+- Gate AW: Meta-intent trajectory revises goals when self-consistency is low
+- Gate AX: Meta-intent canonical hashes are invariant across worker counts
+
+These gates are asserted in `tests/phase57_meta_intent.rs` and run in CI.
+
+### Phase 6: Self-Directed Cognitive Dynamics (Planned)
+- Intentional self-modeling and persistent identity priors
+- Autonomous goal revision loops with bounded contradiction budgets
+- Long-horizon self-directed learning under deterministic replay
 
 ## Integration with UGC-Model
 

@@ -78,3 +78,7 @@ path = "examples/phase55_intent_goal.rs"
 [[example]]
 name = "phase56_multi_goal"
 path = "examples/phase56_multi_goal.rs"
+
+[[example]]
+name = "phase57_meta_intent"
+path = "examples/phase57_meta_intent.rs"

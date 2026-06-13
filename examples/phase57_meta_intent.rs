@@ -1,7 +1,7 @@
 use rugc::{
-    arbitrate_intent_field, compute_cognitive_flow_field, compute_cognitive_potential_field,
-    compute_cognitive_topology, compute_intent_field, resolve_trajectory, MultiFrameCognition,
-    MultiFrameConfig, SemanticConstraint,
+    arbitrate_intent_field, build_meta_intent_field, compute_cognitive_flow_field,
+    compute_cognitive_potential_field, compute_cognitive_topology, compute_intent_field,
+    resolve_meta_intent_trajectory, MultiFrameCognition, MultiFrameConfig, SemanticConstraint,
 };
 use std::collections::BTreeMap;
 
@@ -61,90 +61,83 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn run_pipeline(external: bool) -> (rugc::CognitivePotentialField, rugc::IntentField, Vec<String>) {
+fn run(external: bool) -> (rugc::CognitivePotentialField, rugc::ArbitratedIntentField) {
     let report = build(external).run(cfg(4)).expect("run should succeed");
     let mem = &report.consolidated_memory;
-    let anchor_ids = mem.anchor_basis_ids.clone();
+    let anchors = mem.anchor_basis_ids.clone();
 
     let topo1 = compute_cognitive_topology(mem, 500).expect("topo1 should compute");
     let topo2 = compute_cognitive_topology(mem, 500).expect("topo2 should compute");
-    let flow = compute_cognitive_flow_field(&[topo1, topo2], &anchor_ids)
+
+    let flow = compute_cognitive_flow_field(&[topo1, topo2], &anchors)
         .expect("flow should compute");
     let potential = compute_cognitive_potential_field(&flow).expect("potential should compute");
-    let intent = compute_intent_field(&potential, &anchor_ids).expect("intent should compute");
+    let intent = compute_intent_field(&potential, &anchors).expect("intent should compute");
 
-    (potential, intent, anchor_ids)
-}
-
-fn print_step(label: &str, external: bool) {
-    let (_potential_s, intent_s, _anchor_ids) = run_pipeline(false);
-    let (potential_p, intent_p, _) = if external {
-        run_pipeline(true)
-    } else {
-        run_pipeline(false)
-    };
-
-    let base_weights: BTreeMap<String, i64> = potential_p
+    let base_weights: BTreeMap<String, i64> = potential
         .stability_energies
         .iter()
         .map(|e| (e.region_id.clone(), e.attraction_strength))
         .collect();
 
-    let arbitrated =
-        arbitrate_intent_field(&[intent_s, intent_p], &potential_p, &base_weights)
-            .expect("arbitration should succeed");
+    let arbitrated = arbitrate_intent_field(&[intent.clone(), intent], &potential, &base_weights)
+        .expect("arbitration should compute");
 
-    let current = potential_p
+    (potential, arbitrated)
+}
+
+fn show_step(label: &str, external: bool, recent_hashes: &[String]) -> String {
+    let (potential, arbitrated) = run(external);
+    let meta = build_meta_intent_field(&arbitrated, recent_hashes)
+        .expect("meta should compute");
+
+    let current = potential
         .stability_energies
         .iter()
         .max_by_key(|e| e.potential)
         .map(|e| e.region_id.clone())
         .unwrap_or_default();
 
-    let trajectory = resolve_trajectory(&arbitrated, &potential_p, &current)
-        .expect("trajectory resolution should succeed");
+    let trajectory = resolve_meta_intent_trajectory(&arbitrated, &potential, &current, recent_hashes)
+        .expect("meta trajectory should compute");
 
     println!("{label}");
     println!(
-        "  goals={}, dominant={}",
-        arbitrated.goal_set.goals.len(),
-        arbitrated.dominant_goal_region
+        "  hierarchy layers={} revision_candidates={}",
+        meta.hierarchy.layers.len(),
+        meta.revision_candidates.len()
     );
     println!(
-        "  arbitration_confidence={}, conflict_gradients={}",
-        arbitrated.arbitration_confidence,
-        arbitrated.conflict_gradients.len()
+        "  coherence: hierarchy={} conflict_load={} revision_pressure={} temporal={} self_consistency={}",
+        meta.self_coherence.hierarchy_coherence,
+        meta.self_coherence.conflict_load,
+        meta.self_coherence.revision_pressure,
+        meta.self_coherence.temporal_stability,
+        meta.self_coherence.self_consistency
     );
-    for cg in &arbitrated.conflict_gradients {
-        if cg.total_pull > 0 || cg.interference > 0 {
-            println!(
-                "    {} pull={} dominant={} interference={} coherence={}",
-                cg.region_id, cg.total_pull, cg.dominant_pull, cg.interference, cg.coherence_score
-            );
-        }
-    }
-    println!(
-        "  selected_path={:?}",
-        trajectory.selected_path.join(" → ")
-    );
-    println!(
-        "  deferred_goals={}, conflict_cost={}, efficiency={}, convergent={}",
-        trajectory.deferred_goals.len(),
-        trajectory.conflict_cost,
-        trajectory.arbitration_efficiency,
-        trajectory.convergent
-    );
-    println!("  arb hash={}...", &arbitrated.canonical_hash[..16]);
-    println!("  traj hash={}...", &trajectory.canonical_hash[..16]);
+    println!("  selected path={:?}", trajectory.selected_path.join(" → "));
+    println!("  revised goals={}", trajectory.revised_goals.len());
+    println!("  meta hash={}...", &meta.canonical_hash[..16]);
+    println!("  trajectory hash={}...", &trajectory.canonical_hash[..16]);
     println!();
+
+    meta.canonical_hash
 }
 
 fn main() {
-    println!("=== Phase 5.6: Multi-Goal Arbitration & Internal Conflict Resolution ===");
+    println!("=== Phase 5.7: Self-Consistent Cognitive Dynamics (Meta-Intent) ===");
     println!();
 
-    print_step("Iteration 1 (stable, dual-goal):", false);
-    print_step("Iteration 2 (stable replay):", false);
-    print_step("Iteration 3 (perturbed, conflicting goals):", true);
-    print_step("Iteration 4 (recovery):", false);
+    let mut history: Vec<String> = Vec::new();
+
+    let h1 = show_step("Iteration 1 (stable):", false, &history);
+    history.push(h1);
+
+    let h2 = show_step("Iteration 2 (stable replay):", false, &history);
+    history.push(h2);
+
+    let h3 = show_step("Iteration 3 (perturbed):", true, &history);
+    history.push(h3);
+
+    let _h4 = show_step("Iteration 4 (recovery):", false, &history);
 }
