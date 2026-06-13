@@ -129,6 +129,12 @@ Phase 3 multi-frame deterministic cognition demo:
 cargo run --example phase3_multiframe
 ```
 
+Phase 4 emergent stable-structure demo:
+
+```bash
+cargo run --example phase4_emergent
+```
+
 ### Run Tests
 
 ```bash
@@ -207,8 +213,16 @@ These gates are asserted in `tests/phase3_acceptance.rs` and run in CI.
 ✅ Cross-frame field sharing and deterministic constraint propagation
 ✅ Resonance-driven inference in iterative frame updates
 ✅ Semantic field normalization, compression, and concept clustering primitives
+✅ Convergence detection and memory consolidation artifact hashing
 - Multi-frame contradiction negotiation policies (advanced)
 - Long-horizon iterative reasoning with bounded convergence proofs
+
+### Phase 4 Acceptance Gates (Enforced in Tests/CI)
+- Gate E: Multi-frame loop converges in K iterations under configured thresholds
+- Gate F: Consolidated memory artifact hash is identical across worker counts
+- Gate G: Consolidated memory artifact hash is stable across repeated replays
+
+These gates are asserted in `tests/phase4_convergence.rs` and run in CI.
 
 ### Phase 4: Cross-Lingual Auditing (Planned)
 - Canonical token normalization across languages

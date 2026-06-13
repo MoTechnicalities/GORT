@@ -26,8 +26,14 @@ jobs:
       - name: Enforce Phase 3 acceptance gates
         run: cargo test --test phase3_acceptance
 
+      - name: Enforce Phase 4 acceptance gates
+        run: cargo test --test phase4_convergence
+
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
 
       - name: Validate multi-frame demo example
         run: cargo run --example phase3_multiframe --quiet
+
+      - name: Validate emergent structure demo
+        run: cargo run --example phase4_emergent --quiet

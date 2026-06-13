@@ -34,3 +34,7 @@ path = "examples/phase2_pipeline.rs"
 [[example]]
 name = "phase3_multiframe"
 path = "examples/phase3_multiframe.rs"
+
+[[example]]
+name = "phase4_emergent"
+path = "examples/phase4_emergent.rs"

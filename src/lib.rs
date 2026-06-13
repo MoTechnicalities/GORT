@@ -34,7 +34,7 @@ pub mod geom {
         GeometricState, ConstraintEvaluator, ConstraintSystem,
     };
     pub use space::{Coordinate3, GeometricSpace, Metric, Scalar};
-    pub use field::{FieldPoint, SemanticField};
+    pub use field::{ConceptCluster, FieldPoint, SemanticField};
     pub use mode::{ArithmeticMode, ResonanceMode, ResonanceTransform};
 }
 
@@ -53,8 +53,8 @@ pub mod cognition {
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
     pub use multiframe::{
-        FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
-        MultiFrameReport,
+        ConsolidatedMemory, FrameIterationResult, MultiFrameCognition, MultiFrameConfig,
+        MultiFrameIteration, MultiFrameReport, StabilizationMetrics, StableSense,
     };
     pub use node::{CognitiveFrame, SemanticNode};
     pub use scheduler::{ScheduledTask, TaskScheduler};
@@ -75,14 +75,15 @@ pub use geom::{
     GeometricState, ConstraintEvaluator, ConstraintSystem,
 };
 pub use geom::{
-    ArithmeticMode, Coordinate3, FieldPoint, GeometricSpace, ResonanceMode, ResonanceTransform,
-    SemanticField,
+    ArithmeticMode, ConceptCluster, Coordinate3, FieldPoint, GeometricSpace, ResonanceMode,
+    ResonanceTransform, SemanticField,
 };
 pub use cognition::{
+    ConsolidatedMemory,
     CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
     FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
-    MultiFrameReport, ParallelResolutionSummary, ScheduledTask, SemanticConstraint, SemanticNode,
-    SenseInterferenceScore, TaskScheduler,
+    MultiFrameReport, ParallelResolutionSummary, ScheduledTask, SemanticConstraint,
+    SemanticNode, SenseInterferenceScore, StabilizationMetrics, StableSense, TaskScheduler,
 };
 pub use runtime::{AuditLogger, DeterminismVerifier, DeterministicRuntime};
 
