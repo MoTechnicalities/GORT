@@ -40,6 +40,9 @@ fn main() {
         compression_threshold: 1,
         convergence_window: 2,
         energy_delta_threshold: 2,
+        anchor_energy_max: 500,
+        anchor_pull_strength: 4,
+        anchor_min_persistence: 2,
     };
 
     let report = mfc.run(config).expect("multi-frame run should succeed");

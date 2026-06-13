@@ -53,8 +53,9 @@ pub mod cognition {
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
     pub use multiframe::{
-        ConsolidatedMemory, FrameIterationResult, MultiFrameCognition, MultiFrameConfig,
-        MultiFrameIteration, MultiFrameReport, StabilizationMetrics, StableSense,
+        AnchorRegistry, ConceptAnchor, ConsolidatedMemory, FrameIterationResult,
+        MultiFrameCognition, MultiFrameConfig, MultiFrameIteration, MultiFrameReport,
+        StabilizationMetrics, StableSense,
     };
     pub use node::{CognitiveFrame, SemanticNode};
     pub use scheduler::{ScheduledTask, TaskScheduler};
@@ -79,6 +80,8 @@ pub use geom::{
     ResonanceTransform, SemanticField,
 };
 pub use cognition::{
+    AnchorRegistry,
+    ConceptAnchor,
     ConsolidatedMemory,
     CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
     FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,

@@ -43,6 +43,9 @@ fn main() {
         compression_threshold: 1,
         convergence_window: 2,
         energy_delta_threshold: 2,
+        anchor_energy_max: 500,
+        anchor_pull_strength: 4,
+        anchor_min_persistence: 2,
     };
 
     let report = mfc.run(config).expect("phase4 emergent run should succeed");
@@ -74,10 +77,23 @@ fn main() {
     }
 
     println!("\nConverged at iteration: {:?}", report.converged_iteration);
+    println!("Anchors registered: {}", report.anchor_registry.anchors.len());
     println!(
         "Consolidated artifact hash: {}",
         report.consolidated_memory.artifact_hash
     );
+
+    println!("Concept anchors:");
+    for anchor in &report.anchor_registry.anchors {
+        println!(
+            "  id={} hits={} frames={} energy={} hash={}",
+            anchor.id,
+            anchor.persistence_hits,
+            anchor.frame_count,
+            anchor.energy,
+            anchor.canonical_hash
+        );
+    }
 
     println!("Stable senses:");
     for sense in &report.consolidated_memory.stable_senses {

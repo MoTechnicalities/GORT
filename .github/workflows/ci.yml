@@ -29,6 +29,9 @@ jobs:
       - name: Enforce Phase 4 acceptance gates
         run: cargo test --test phase4_convergence
 
+      - name: Enforce Phase 4.5 acceptance gates
+        run: cargo test --test phase45_anchors
+
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
 
@@ -37,3 +40,6 @@ jobs:
 
       - name: Validate emergent structure demo
         run: cargo run --example phase4_emergent --quiet
+
+      - name: Validate concept-anchor demo
+        run: cargo run --example phase45_concept_anchor --quiet

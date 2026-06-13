@@ -3,6 +3,7 @@
 
 use crate::geom::space::Coordinate3;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +91,28 @@ impl SemanticField {
 
     pub fn canonical_concepts(&self) -> Vec<String> {
         self.concept_map.keys().cloned().collect()
+    }
+
+    pub fn canonical_snapshot(&self) -> Vec<(String, i64, i64, i64, i64)> {
+        self
+            .ordered_concepts()
+            .map(|(concept, point)| {
+                (
+                    concept.clone(),
+                    point.intensity,
+                    point.position.x,
+                    point.position.y,
+                    point.position.z,
+                )
+            })
+            .collect()
+    }
+
+    pub fn canonical_hash(&self) -> Result<String, serde_json::Error> {
+        let bytes = serde_json::to_vec(&self.canonical_snapshot())?;
+        let mut h = Sha256::new();
+        h.update(bytes);
+        Ok(format!("{:x}", h.finalize()))
     }
 
     pub fn merge_from(&mut self, other: &SemanticField) {
@@ -217,5 +240,45 @@ mod tests {
         assert_eq!(clusters[0].anchor, "light");
         assert_eq!(clusters[0].members, vec!["light:particle", "light:wave"]);
         assert_eq!(clusters[0].total_intensity, 18);
+    }
+
+    #[test]
+    fn canonical_hash_is_stable_for_equivalent_fields() {
+        let mut a = SemanticField::new();
+        let mut b = SemanticField::new();
+
+        a.upsert_concept(
+            "light:wave",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 12,
+            },
+        );
+        a.upsert_concept(
+            "light:particle",
+            FieldPoint {
+                position: Coordinate3::new(1, 0, 0),
+                intensity: 10,
+            },
+        );
+
+        b.upsert_concept(
+            "light:particle",
+            FieldPoint {
+                position: Coordinate3::new(1, 0, 0),
+                intensity: 10,
+            },
+        );
+        b.upsert_concept(
+            "light:wave",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 12,
+            },
+        );
+
+        let ha = a.canonical_hash().unwrap_or_default();
+        let hb = b.canonical_hash().unwrap_or_default();
+        assert_eq!(ha, hb);
     }
 }

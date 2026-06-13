@@ -38,3 +38,7 @@ path = "examples/phase3_multiframe.rs"
 [[example]]
 name = "phase4_emergent"
 path = "examples/phase4_emergent.rs"
+
+[[example]]
+name = "phase45_concept_anchor"
+path = "examples/phase45_concept_anchor.rs"

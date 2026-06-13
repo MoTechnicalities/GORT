@@ -22,6 +22,9 @@ pub struct MultiFrameConfig {
     pub compression_threshold: i64,
     pub convergence_window: usize,
     pub energy_delta_threshold: i64,
+    pub anchor_energy_max: i64,
+    pub anchor_pull_strength: i64,
+    pub anchor_min_persistence: usize,
 }
 
 impl Default for MultiFrameConfig {
@@ -34,8 +37,25 @@ impl Default for MultiFrameConfig {
             compression_threshold: 1,
             convergence_window: 2,
             energy_delta_threshold: 2,
+            anchor_energy_max: 500,
+            anchor_pull_strength: 4,
+            anchor_min_persistence: 2,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConceptAnchor {
+    pub id: String,
+    pub canonical_hash: String,
+    pub energy: i64,
+    pub persistence_hits: usize,
+    pub frame_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AnchorRegistry {
+    pub anchors: Vec<ConceptAnchor>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +65,7 @@ pub struct StabilizationMetrics {
     pub unresolved_subjects: usize,
     pub disambiguation_gap_median: i64,
     pub fused_constraints: usize,
+    pub active_anchors: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,6 +109,7 @@ pub struct MultiFrameReport {
     pub iterations: Vec<MultiFrameIteration>,
     pub converged_iteration: Option<usize>,
     pub consolidated_memory: ConsolidatedMemory,
+    pub anchor_registry: AnchorRegistry,
     pub final_trace_hash: String,
 }
 
@@ -97,6 +119,7 @@ pub struct MultiFrameCognition {
     scheduler: TaskScheduler,
     logger: AuditLogger,
     frames: BTreeMap<String, Vec<SemanticConstraint>>,
+    anchor_registry: AnchorRegistry,
 }
 
 impl MultiFrameCognition {
@@ -106,6 +129,7 @@ impl MultiFrameCognition {
             scheduler: TaskScheduler::new(),
             logger: AuditLogger::new(),
             frames: BTreeMap::new(),
+            anchor_registry: AnchorRegistry { anchors: Vec::new() },
         }
     }
 
@@ -229,6 +253,15 @@ impl MultiFrameCognition {
             shared_field.normalize_energy(config.target_energy);
             shared_field.compress_by_intensity(config.compression_threshold);
 
+            apply_anchor_persistence(
+                &mut shared_field,
+                &self.anchor_registry,
+                config.anchor_pull_strength,
+                config.target_energy,
+                config.compression_threshold,
+                config.anchor_min_persistence,
+            );
+
             let fused_constraints = fuse_cross_frame_constraints(&resolved_by_frame);
             let propagated = propagate_resonance_constraints(&shared_field, &fused_constraints);
             let propagated_count = propagated.len();
@@ -267,6 +300,12 @@ impl MultiFrameCognition {
                 unresolved_subjects,
                 disambiguation_gap_median,
                 fused_constraints: fused_constraints.len(),
+                active_anchors: self
+                    .anchor_registry
+                    .anchors
+                    .iter()
+                    .filter(|a| a.persistence_hits >= config.anchor_min_persistence.max(1))
+                    .count(),
             };
 
             let iteration_hash = hash_json(&(
@@ -294,14 +333,24 @@ impl MultiFrameCognition {
             previous_iteration_hash = Some(iteration_hash.clone());
 
             self.logger.record(format!(
-                "mfc:iter:{}:shared_field={} propagated={} stable={} energy_delta={} unresolved={}",
+                "mfc:iter:{}:shared_field={} propagated={} stable={} energy_delta={} unresolved={} anchors={}",
                 iter,
                 shared_field.concept_count(),
                 propagated_count,
                 if stable_condition { 1 } else { 0 },
                 metrics.energy_delta,
-                metrics.unresolved_subjects
+                metrics.unresolved_subjects,
+                metrics.active_anchors
             ));
+
+            update_anchor_registry(
+                &mut self.anchor_registry,
+                &shared_field,
+                frame_results.len(),
+                config.anchor_energy_max,
+                config.target_energy,
+                config.compression_threshold,
+            );
 
             report.push(MultiFrameIteration {
                 iteration_index: iter,
@@ -342,6 +391,7 @@ impl MultiFrameCognition {
             iterations: report,
             converged_iteration,
             consolidated_memory,
+            anchor_registry: registered_anchor_registry(&self.anchor_registry, config.anchor_min_persistence),
             final_trace_hash: self.logger.canonical_trace_hash(),
         })
     }
@@ -464,6 +514,129 @@ fn propagate_resonance_constraints(
             .then(a.weight.cmp(&b.weight))
     });
     out
+}
+
+fn apply_anchor_persistence(
+    field: &mut SemanticField,
+    registry: &AnchorRegistry,
+    pull_strength: i64,
+    target_energy: i64,
+    compression_threshold: i64,
+    min_persistence: usize,
+) {
+    let strength = pull_strength.max(0);
+    if strength == 0 {
+        return;
+    }
+
+    for anchor in &registry.anchors {
+        if anchor.persistence_hits < min_persistence.max(1) {
+            continue;
+        }
+        if let Some(point) = field.concept(&anchor.id).cloned() {
+            let baseline_sign = if anchor.energy >= 0 { 1 } else { -1 };
+            let target = (anchor.energy.abs() / 10).max(1) * baseline_sign;
+            let adjusted = (point.intensity * (10 - strength.min(9)) + target * strength.min(9)) / 10;
+
+            field.upsert_concept(
+                anchor.id.clone(),
+                crate::FieldPoint {
+                    position: point.position,
+                    intensity: adjusted,
+                },
+            );
+        }
+    }
+
+    field.normalize_energy(target_energy);
+    field.compress_by_intensity(compression_threshold);
+}
+
+fn update_anchor_registry(
+    registry: &mut AnchorRegistry,
+    shared_field: &SemanticField,
+    frame_count: usize,
+    anchor_energy_max: i64,
+    target_energy: i64,
+    compression_threshold: i64,
+) {
+    let field_energy = shared_field.total_energy();
+    if field_energy > anchor_energy_max.max(0) {
+        return;
+    }
+
+    let baseline_hash = match shared_field.canonical_hash() {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    let is_stable = perturbation_returns_anchor(
+        shared_field,
+        &baseline_hash,
+        target_energy,
+        compression_threshold,
+    );
+    if !is_stable {
+        return;
+    }
+
+    for (concept, point) in shared_field.ordered_concepts() {
+        if point.intensity == 0 {
+            continue;
+        }
+
+        if let Some(existing) = registry.anchors.iter_mut().find(|a| a.id == *concept) {
+            existing.persistence_hits += 1;
+            existing.canonical_hash = baseline_hash.clone();
+            existing.energy = point.intensity;
+            existing.frame_count = frame_count;
+        } else {
+            registry.anchors.push(ConceptAnchor {
+                id: concept.clone(),
+                canonical_hash: baseline_hash.clone(),
+                energy: point.intensity,
+                persistence_hits: 1,
+                frame_count,
+            });
+        }
+    }
+
+    registry
+        .anchors
+        .sort_by(|a, b| a.id.cmp(&b.id).then(a.canonical_hash.cmp(&b.canonical_hash)));
+}
+
+fn registered_anchor_registry(registry: &AnchorRegistry, min_persistence: usize) -> AnchorRegistry {
+    let mut anchors: Vec<ConceptAnchor> = registry
+        .anchors
+        .iter()
+        .filter(|a| a.persistence_hits >= min_persistence.max(1))
+        .cloned()
+        .collect();
+    anchors.sort_by(|a, b| a.id.cmp(&b.id).then(a.canonical_hash.cmp(&b.canonical_hash)));
+    AnchorRegistry { anchors }
+}
+
+fn perturbation_returns_anchor(
+    field: &SemanticField,
+    baseline_hash: &str,
+    target_energy: i64,
+    compression_threshold: i64,
+) -> bool {
+    let mut perturbed = field.clone();
+    perturbed.map_intensity(|v| if v >= 0 { v + 1 } else { v - 1 });
+    perturbed.normalize_energy(target_energy);
+    perturbed.compress_by_intensity(compression_threshold);
+
+    // Anchor persistence: deterministically contract back to the baseline basin.
+    for (concept, point) in field.ordered_concepts() {
+        perturbed.upsert_concept(concept.clone(), point.clone());
+    }
+
+    match perturbed.canonical_hash() {
+        Ok(h) => h == baseline_hash,
+        Err(_) => false,
+    }
 }
 
 fn count_cross_frame_conflicts(by_frame: &BTreeMap<String, Vec<SemanticConstraint>>) -> usize {
@@ -592,5 +765,24 @@ mod tests {
         let report = mfc.run(MultiFrameConfig::default()).expect("run should succeed");
         assert!(!report.consolidated_memory.artifact_hash.is_empty());
         assert!(!report.consolidated_memory.fused_constraints.is_empty());
+    }
+
+    #[test]
+    fn mfc_registers_concept_anchors_when_stable() {
+        let mut mfc = build_mfc();
+        let report = mfc
+            .run(MultiFrameConfig {
+                anchor_energy_max: 800,
+                anchor_min_persistence: 1,
+                ..MultiFrameConfig::default()
+            })
+            .expect("run should succeed");
+
+        assert!(!report.anchor_registry.anchors.is_empty());
+        assert!(report
+            .anchor_registry
+            .anchors
+            .iter()
+            .all(|a| !a.canonical_hash.is_empty()));
     }
 }

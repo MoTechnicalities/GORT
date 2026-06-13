@@ -135,6 +135,12 @@ Phase 4 emergent stable-structure demo:
 cargo run --example phase4_emergent
 ```
 
+Phase 4.5 concept-anchor attractor demo:
+
+```bash
+cargo run --example phase45_concept_anchor
+```
+
 ### Run Tests
 
 ```bash
@@ -223,6 +229,20 @@ These gates are asserted in `tests/phase3_acceptance.rs` and run in CI.
 - Gate G: Consolidated memory artifact hash is stable across repeated replays
 
 These gates are asserted in `tests/phase4_convergence.rs` and run in CI.
+
+### Phase 4.5: Concept Anchors (In Progress)
+✅ Stable low-energy attractor detection in shared semantic fields
+✅ Anchor persistence under deterministic perturbation tests
+✅ Anchor registry integrated into multi-frame interpretation loop
+✅ Anchor-guided stabilization and self-basis continuity checks
+- Internal/external perturbation classifiers driven by anchor drift metrics
+
+### Phase 4.5 Acceptance Gates (Enforced in Tests/CI)
+- Gate H: Concept anchors are registered only after persistence threshold is reached
+- Gate I: Anchor registry hash is invariant across worker counts
+- Gate J: External perturbation changes consolidated memory while preserving at least one anchor basis
+
+These gates are asserted in `tests/phase45_anchors.rs` and run in CI.
 
 ### Phase 4: Cross-Lingual Auditing (Planned)
 - Canonical token normalization across languages
