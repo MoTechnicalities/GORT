@@ -44,6 +44,9 @@ jobs:
       - name: Enforce Phase 5.1 acceptance gates
         run: cargo test --test phase51_topology
 
+      - name: Enforce Phase 5.2 acceptance gates
+        run: cargo test --test phase52_manifold_dynamics
+
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
 
@@ -67,3 +70,6 @@ jobs:
 
       - name: Validate emergent cognitive topology demo
         run: cargo run --example phase51_topology --quiet
+
+      - name: Validate cognitive manifold dynamics demo
+        run: cargo run --example phase52_manifold_dynamics --quiet

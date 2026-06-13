@@ -178,6 +178,36 @@ pub struct CognitiveTopology {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifoldDrift {
+    pub region_delta: i64,
+    pub boundary_delta: i64,
+    pub stability_delta: i64,
+    pub cohesion_delta: i64,
+    pub added_regions: Vec<String>,
+    pub removed_regions: Vec<String>,
+    pub hash_changed: bool,
+    pub drift_score: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopologyEvolutionStep {
+    pub step_index: usize,
+    pub drift: ManifoldDrift,
+    pub is_phase_transition: bool,
+    pub topology_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifoldEvolutionTrace {
+    pub steps: Vec<TopologyEvolutionStep>,
+    pub persistent_region_ids: Vec<String>,
+    pub transient_region_ids: Vec<String>,
+    pub phase_transition_steps: Vec<usize>,
+    pub overall_stability: i64,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrameIterationResult {
     pub topic: String,
     pub frame_id: String,
@@ -1466,6 +1496,125 @@ pub fn compute_cognitive_topology(
         regions,
         boundary_concepts,
         metrics,
+        canonical_hash,
+    })
+}
+
+pub fn compare_topologies(a: &CognitiveTopology, b: &CognitiveTopology) -> ManifoldDrift {
+    let a_ids: BTreeSet<String> = a.regions.iter().map(|r| r.id.clone()).collect();
+    let b_ids: BTreeSet<String> = b.regions.iter().map(|r| r.id.clone()).collect();
+
+    let added_regions: Vec<String> = b_ids.difference(&a_ids).cloned().collect();
+    let removed_regions: Vec<String> = a_ids.difference(&b_ids).cloned().collect();
+
+    let region_delta = b.metrics.region_count as i64 - a.metrics.region_count as i64;
+    let boundary_delta = b.metrics.boundary_count as i64 - a.metrics.boundary_count as i64;
+    let stability_delta = b.metrics.manifold_stability - a.metrics.manifold_stability;
+
+    let a_cohesion: i64 = if a.regions.is_empty() {
+        0
+    } else {
+        a.regions.iter().map(|r| r.cohesion_score).sum::<i64>() / a.regions.len() as i64
+    };
+    let b_cohesion: i64 = if b.regions.is_empty() {
+        0
+    } else {
+        b.regions.iter().map(|r| r.cohesion_score).sum::<i64>() / b.regions.len() as i64
+    };
+    let cohesion_delta = b_cohesion - a_cohesion;
+
+    let drift_score = (region_delta.abs() * 300)
+        + (boundary_delta.abs() * 100)
+        + (stability_delta.abs() / 10)
+        + (cohesion_delta.abs() / 10)
+        + (added_regions.len() as i64 * 200)
+        + (removed_regions.len() as i64 * 200);
+
+    ManifoldDrift {
+        region_delta,
+        boundary_delta,
+        stability_delta,
+        cohesion_delta,
+        added_regions,
+        removed_regions,
+        hash_changed: a.canonical_hash != b.canonical_hash,
+        drift_score,
+    }
+}
+
+pub fn detect_phase_transition(drift: &ManifoldDrift, threshold: i64) -> bool {
+    drift.drift_score >= threshold.max(1)
+        || !drift.added_regions.is_empty()
+        || !drift.removed_regions.is_empty()
+}
+
+pub fn track_manifold_evolution(
+    snapshots: &[CognitiveTopology],
+    phase_threshold: i64,
+) -> Result<ManifoldEvolutionTrace, InvariantViolation> {
+    if snapshots.is_empty() {
+        let canonical_hash = hash_json(&Vec::<TopologyEvolutionStep>::new())?;
+        return Ok(ManifoldEvolutionTrace {
+            steps: Vec::new(),
+            persistent_region_ids: Vec::new(),
+            transient_region_ids: Vec::new(),
+            phase_transition_steps: Vec::new(),
+            overall_stability: 1000,
+            canonical_hash,
+        });
+    }
+
+    let mut steps: Vec<TopologyEvolutionStep> = Vec::new();
+    let mut phase_transition_steps: Vec<usize> = Vec::new();
+
+    let mut region_appearances: BTreeMap<String, usize> = BTreeMap::new();
+    for snapshot in snapshots {
+        for region in &snapshot.regions {
+            *region_appearances.entry(region.id.clone()).or_default() += 1;
+        }
+    }
+
+    for i in 1..snapshots.len() {
+        let drift = compare_topologies(&snapshots[i - 1], &snapshots[i]);
+        let is_phase_transition = detect_phase_transition(&drift, phase_threshold);
+        if is_phase_transition {
+            phase_transition_steps.push(i);
+        }
+        steps.push(TopologyEvolutionStep {
+            step_index: i,
+            drift,
+            is_phase_transition,
+            topology_hash: snapshots[i].canonical_hash.clone(),
+        });
+    }
+
+    let total_steps = snapshots.len();
+    let persistent_region_ids: Vec<String> = region_appearances
+        .iter()
+        .filter(|(_, &count)| count == total_steps)
+        .map(|(id, _)| id.clone())
+        .collect();
+    let transient_region_ids: Vec<String> = region_appearances
+        .iter()
+        .filter(|(_, &count)| count < total_steps)
+        .map(|(id, _)| id.clone())
+        .collect();
+
+    let total_drift: i64 = steps.iter().map(|s| s.drift.drift_score).sum();
+    let overall_stability = if steps.is_empty() {
+        1000
+    } else {
+        (1000 - total_drift / steps.len() as i64).max(0)
+    };
+
+    let canonical_hash = hash_json(&(&steps, &persistent_region_ids, &phase_transition_steps))?;
+
+    Ok(ManifoldEvolutionTrace {
+        steps,
+        persistent_region_ids,
+        transient_region_ids,
+        phase_transition_steps,
+        overall_stability,
         canonical_hash,
     })
 }

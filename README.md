@@ -208,6 +208,12 @@ Phase 5.1 emergent cognitive topology demo:
 cargo run --example phase51_topology
 ```
 
+Phase 5.2 cognitive manifold dynamics demo:
+
+```bash
+cargo run --example phase52_manifold_dynamics
+```
+
 ### Run Tests
 
 ```bash
@@ -378,7 +384,23 @@ These gates are asserted in `tests/phase50_anchor_distance.rs` and run in CI.
 
 These gates are asserted in `tests/phase51_topology.rs` and run in CI.
 
-### Phase 5.2: Emergent Cognitive Geometry (Planned)
+### Phase 5.2: Cognitive Manifold Dynamics (In Progress)
+✅ Manifold drift detection — compare sequential topology snapshots for structural change
+✅ Phase transition detection — threshold-based detection of manifold regime shifts
+✅ Manifold evolution tracing — track persistent vs transient regions across time
+✅ Worker-invariant evolution trace with replay-stable canonical hash
+- Higher-order manifold clustering (regions of regions)
+- Long-horizon topological memory with drift budgeting
+
+### Phase 5.2 Acceptance Gates (Enforced in Tests/CI)
+- Gate W: Manifold drift detects topology changes between baseline and perturbed runs
+- Gate X: Drift is zero for identical topology replays
+- Gate Y: Phase transitions detected on external injection; absent on stable replays
+- Gate Z: Evolution trace canonical hash is invariant across worker counts
+
+These gates are asserted in `tests/phase52_manifold_dynamics.rs` and run in CI.
+
+### Phase 5.3: Emergent Cognitive Geometry (Planned)
 - Promote stable topological structures into explicit geometric coordinate systems
 - Learn geometry from anchor-preserving developmental interaction traces
 - Establish endogenous distance, topology, and transformation semantics from replay-stable histories

@@ -53,12 +53,13 @@ pub mod cognition {
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
     pub use multiframe::{
-        anchor_derived_relational_distance, compute_cognitive_topology,
+        anchor_derived_relational_distance, compare_topologies, compute_cognitive_topology,
+        detect_phase_transition, track_manifold_evolution,
         AnchorRegistry, AnchorRelationalDistance, CognitiveTopology, ConceptAnchor,
-        ConsolidatedMemory, EmergentConcept, FrameIterationResult,
-        MultiFrameCognition, MultiFrameConfig, MultiFrameIteration, MultiFrameReport,
-        StabilizationMetrics, StableSense, TopologicalNeighborhood, TopologicalRegion,
-        TopologyMetrics,
+        ConsolidatedMemory, EmergentConcept, FrameIterationResult, ManifoldDrift,
+        ManifoldEvolutionTrace, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
+        MultiFrameReport, StabilizationMetrics, StableSense, TopologicalNeighborhood,
+        TopologicalRegion, TopologyEvolutionStep, TopologyMetrics,
     };
     pub use node::{CognitiveFrame, SemanticNode};
     pub use scheduler::{ScheduledTask, TaskScheduler};
@@ -84,15 +85,21 @@ pub use geom::{
 };
 pub use cognition::{
     anchor_derived_relational_distance,
+    compare_topologies,
     compute_cognitive_topology,
+    detect_phase_transition,
+    track_manifold_evolution,
     AnchorRegistry,
     AnchorRelationalDistance,
     CognitiveTopology,
     ConceptAnchor,
     ConsolidatedMemory,
     EmergentConcept,
+    ManifoldDrift,
+    ManifoldEvolutionTrace,
     TopologicalNeighborhood,
     TopologicalRegion,
+    TopologyEvolutionStep,
     TopologyMetrics,
     CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
     FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
