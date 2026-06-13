@@ -141,6 +141,12 @@ Phase 4.5 concept-anchor attractor demo:
 cargo run --example phase45_concept_anchor
 ```
 
+Phase 4.6 anchor-weighted interpretation demo:
+
+```bash
+cargo run --example phase46_anchor_weighted
+```
+
 ### Run Tests
 
 ```bash
@@ -243,6 +249,20 @@ These gates are asserted in `tests/phase4_convergence.rs` and run in CI.
 - Gate J: External perturbation changes consolidated memory while preserving at least one anchor basis
 
 These gates are asserted in `tests/phase45_anchors.rs` and run in CI.
+
+### Phase 4.6: Anchor-Weighted Interpretation (In Progress)
+✅ Anchor-weighted resonance (amplify near-anchor, dampen far-anchor, highlight contradictions)
+✅ Anchor-guided fusion with anchor/field alignment bias
+✅ Self-continuity metrics (overlap, drift, stability, anchor-field coherence)
+✅ Anchor-driven consolidation scores for internal continuity vs external change
+- Anchor-driven adaptive policy learning for long-horizon interpretation
+
+### Phase 4.6 Acceptance Gates (Enforced in Tests/CI)
+- Gate K: Anchor-field coherence improves across iterative runs
+- Gate L: Anchor-weighted consolidation outputs are invariant across worker counts
+- Gate M: Anchor-guided interpretation reduces highlighted contradictions over iterations
+
+These gates are asserted in `tests/phase46_anchor_weighted.rs` and run in CI.
 
 ### Phase 4: Cross-Lingual Auditing (Planned)
 - Canonical token normalization across languages

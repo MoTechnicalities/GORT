@@ -46,20 +46,26 @@ fn main() {
         anchor_energy_max: 500,
         anchor_pull_strength: 4,
         anchor_min_persistence: 2,
+        anchor_alignment_window: 25,
+        anchor_contradiction_highlight: 6,
+        anchor_fusion_bias: 8,
     };
 
     let report = mfc.run(config).expect("phase4 emergent run should succeed");
 
     for iter in &report.iterations {
         println!(
-            "Iteration {} -> shared_concepts={} propagated={} converged={} energy_delta={} contradictions={} unresolved={}",
+            "Iteration {} -> shared_concepts={} propagated={} converged={} energy_delta={} contradictions={} unresolved={} overlap={} drift={} coherence={}",
             iter.iteration_index,
             iter.shared_field_concepts,
             iter.propagated_constraints,
             iter.converged,
             iter.metrics.energy_delta,
             iter.metrics.contradiction_count,
-            iter.metrics.unresolved_subjects
+            iter.metrics.unresolved_subjects,
+            iter.metrics.anchor_overlap,
+            iter.metrics.anchor_drift,
+            iter.metrics.anchor_field_coherence
         );
 
         for frame in &iter.frame_results {
@@ -81,6 +87,10 @@ fn main() {
     println!(
         "Consolidated artifact hash: {}",
         report.consolidated_memory.artifact_hash
+    );
+    println!(
+        "Anchor basis hash: {}",
+        report.consolidated_memory.anchor_basis_hash
     );
 
     println!("Concept anchors:");

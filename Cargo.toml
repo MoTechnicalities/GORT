@@ -42,3 +42,7 @@ path = "examples/phase4_emergent.rs"
 [[example]]
 name = "phase45_concept_anchor"
 path = "examples/phase45_concept_anchor.rs"
+
+[[example]]
+name = "phase46_anchor_weighted"
+path = "examples/phase46_anchor_weighted.rs"

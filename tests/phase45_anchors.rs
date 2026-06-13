@@ -12,6 +12,9 @@ fn base_config(worker_count: usize) -> MultiFrameConfig {
         anchor_energy_max: 2000,
         anchor_pull_strength: 4,
         anchor_min_persistence: 1,
+        anchor_alignment_window: 25,
+        anchor_contradiction_highlight: 6,
+        anchor_fusion_bias: 8,
     }
 }
 

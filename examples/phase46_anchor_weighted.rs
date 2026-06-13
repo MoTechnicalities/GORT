@@ -1,7 +1,7 @@
 use rugc::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 
 fn main() {
-    println!("=== RUGC Phase 3 Multi-Frame Demo ===\n");
+    println!("=== RUGC Phase 4.6 Anchor-Weighted Interpretation Demo ===\n");
 
     let mut mfc = MultiFrameCognition::new();
 
@@ -32,43 +32,54 @@ fn main() {
         ],
     );
 
-    let config = MultiFrameConfig {
-        iterations: 3,
+    let cfg = MultiFrameConfig {
+        iterations: 10,
         worker_count: 4,
         ambiguity_margin: 5000,
         target_energy: 500,
         compression_threshold: 1,
         convergence_window: 2,
         energy_delta_threshold: 2,
-        anchor_energy_max: 500,
+        anchor_energy_max: 2000,
         anchor_pull_strength: 4,
-        anchor_min_persistence: 2,
+        anchor_min_persistence: 1,
         anchor_alignment_window: 25,
         anchor_contradiction_highlight: 6,
         anchor_fusion_bias: 8,
     };
 
-    let report = mfc.run(config).expect("multi-frame run should succeed");
+    let report = mfc.run(cfg).expect("phase46 run should succeed");
 
     for iter in &report.iterations {
         println!(
-            "Iteration {}: shared_field_concepts={}, propagated_constraints={}",
-            iter.iteration_index, iter.shared_field_concepts, iter.propagated_constraints
+            "iter={} converged={} overlap={} drift={} stability={} coherence={} highlighted={} active_anchors={}",
+            iter.iteration_index,
+            iter.converged,
+            iter.metrics.anchor_overlap,
+            iter.metrics.anchor_drift,
+            iter.metrics.anchor_stability,
+            iter.metrics.anchor_field_coherence,
+            iter.metrics.anchor_contradictions_highlighted,
+            iter.metrics.active_anchors
         );
-
-        for frame in &iter.frame_results {
-            println!(
-                "  Frame {} -> status={} concepts={} frame_id={}",
-                frame.topic, frame.closure_status, frame.field_concepts, frame.frame_id
-            );
-            for (subject, selected, unresolved, gap) in &frame.selected_senses {
-                println!(
-                    "    subject={} selected={} unresolved={} gap={}",
-                    subject, selected, unresolved, gap
-                );
-            }
-        }
     }
 
-    println!("\nFinal canonical trace hash: {}", report.final_trace_hash);
+    println!("\nAnchor registry:");
+    for anchor in &report.anchor_registry.anchors {
+        println!(
+            "  id={} hits={} energy={} hash={}",
+            anchor.id, anchor.persistence_hits, anchor.energy, anchor.canonical_hash
+        );
+    }
+
+    println!("\nAnchor basis hash: {}", report.consolidated_memory.anchor_basis_hash);
+    println!(
+        "Self continuity score: {}",
+        report.consolidated_memory.self_continuity_score
+    );
+    println!(
+        "External change score: {}",
+        report.consolidated_memory.external_change_score
+    );
+    println!("Artifact hash: {}", report.consolidated_memory.artifact_hash);
 }
