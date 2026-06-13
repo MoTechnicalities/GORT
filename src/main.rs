@@ -14,4 +14,5 @@ fn main() {
     println!("  cargo run --example phase4_emergent");
     println!("  cargo run --example phase45_concept_anchor");
     println!("  cargo run --example phase46_anchor_weighted");
+    println!("  cargo run --example phase47_emergent_concepts");
 }

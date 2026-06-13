@@ -147,6 +147,12 @@ Phase 4.6 anchor-weighted interpretation demo:
 cargo run --example phase46_anchor_weighted
 ```
 
+Phase 4.7 anchor-driven emergent concept formation demo:
+
+```bash
+cargo run --example phase47_emergent_concepts
+```
+
 ### Run Tests
 
 ```bash
@@ -263,6 +269,20 @@ These gates are asserted in `tests/phase45_anchors.rs` and run in CI.
 - Gate M: Anchor-guided interpretation reduces highlighted contradictions over iterations
 
 These gates are asserted in `tests/phase46_anchor_weighted.rs` and run in CI.
+
+### Phase 4.7: Anchor-Driven Emergent Concept Formation (In Progress)
+✅ Emergent concept candidates detected from anchor-aligned stable clusters
+✅ Persistent candidate promotion into deterministic emergent concept registry
+✅ Emergent constraint synthesis expands internal ontology deterministically
+✅ Consolidated memory captures emergent concepts and ontology expansion score
+- Adaptive emergent concept pruning/merging over long-horizon memory windows
+
+### Phase 4.7 Acceptance Gates (Enforced in Tests/CI)
+- Gate N: Emergent concepts form only after anchor-aligned persistence thresholds
+- Gate O: Emergent concept registry and consolidation outputs are worker-invariant
+- Gate P: Emergent constraint synthesis expands ontology with replay-stable signatures
+
+These gates are asserted in `tests/phase47_emergent_concepts.rs` and run in CI.
 
 ### Phase 4: Cross-Lingual Auditing (Planned)
 - Canonical token normalization across languages

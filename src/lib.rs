@@ -53,7 +53,7 @@ pub mod cognition {
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
     pub use multiframe::{
-        AnchorRegistry, ConceptAnchor, ConsolidatedMemory, FrameIterationResult,
+        AnchorRegistry, ConceptAnchor, ConsolidatedMemory, EmergentConcept, FrameIterationResult,
         MultiFrameCognition, MultiFrameConfig, MultiFrameIteration, MultiFrameReport,
         StabilizationMetrics, StableSense,
     };
@@ -83,6 +83,7 @@ pub use cognition::{
     AnchorRegistry,
     ConceptAnchor,
     ConsolidatedMemory,
+    EmergentConcept,
     CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
     FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
     MultiFrameReport, ParallelResolutionSummary, ScheduledTask, SemanticConstraint,

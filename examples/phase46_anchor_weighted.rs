@@ -46,6 +46,11 @@ fn main() {
         anchor_alignment_window: 25,
         anchor_contradiction_highlight: 6,
         anchor_fusion_bias: 8,
+        emergent_min_cluster_size: 2,
+        emergent_min_anchor_support: 1,
+        emergent_resonance_threshold: 40,
+        emergent_min_persistence: 2,
+        emergent_constraint_weight: 36,
     };
 
     let report = mfc.run(cfg).expect("phase46 run should succeed");

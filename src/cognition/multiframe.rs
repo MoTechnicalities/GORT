@@ -28,6 +28,11 @@ pub struct MultiFrameConfig {
     pub anchor_alignment_window: i64,
     pub anchor_contradiction_highlight: i64,
     pub anchor_fusion_bias: i64,
+    pub emergent_min_cluster_size: usize,
+    pub emergent_min_anchor_support: usize,
+    pub emergent_resonance_threshold: i64,
+    pub emergent_min_persistence: usize,
+    pub emergent_constraint_weight: u8,
 }
 
 impl Default for MultiFrameConfig {
@@ -46,8 +51,33 @@ impl Default for MultiFrameConfig {
             anchor_alignment_window: 25,
             anchor_contradiction_highlight: 6,
             anchor_fusion_bias: 8,
+            emergent_min_cluster_size: 2,
+            emergent_min_anchor_support: 1,
+            emergent_resonance_threshold: 40,
+            emergent_min_persistence: 2,
+            emergent_constraint_weight: 36,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmergentConcept {
+    pub id: String,
+    pub subject: String,
+    pub basis_anchors: Vec<String>,
+    pub members: Vec<String>,
+    pub resonance_score: i64,
+    pub persistence_hits: usize,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EmergentConceptCandidate {
+    id: String,
+    subject: String,
+    basis_anchors: Vec<String>,
+    members: Vec<String>,
+    resonance_score: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +107,8 @@ pub struct StabilizationMetrics {
     pub anchor_stability: i64,
     pub anchor_field_coherence: i64,
     pub anchor_contradictions_highlighted: usize,
+    pub emergent_candidates: usize,
+    pub emergent_concepts_active: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,6 +127,8 @@ pub struct ConsolidatedMemory {
     pub anchor_basis_hash: String,
     pub self_continuity_score: i64,
     pub external_change_score: i64,
+    pub emergent_concepts: Vec<EmergentConcept>,
+    pub ontology_expansion_score: i64,
     pub artifact_hash: String,
 }
 
@@ -163,6 +197,8 @@ impl MultiFrameCognition {
         let mut previous_shared_energy: Option<i64> = None;
         let mut previous_iteration_hash: Option<String> = None;
         let mut previous_anchor_energies: BTreeMap<String, i64> = BTreeMap::new();
+        let mut emergent_hits: BTreeMap<String, usize> = BTreeMap::new();
+        let mut emergent_latest: BTreeMap<String, EmergentConceptCandidate> = BTreeMap::new();
         let mut stable_streak: usize = 0;
         let mut converged_iteration: Option<usize> = None;
         let mut last_fused_constraints: Vec<SemanticConstraint> = Vec::new();
@@ -353,6 +389,52 @@ impl MultiFrameCognition {
                 anchor_stability,
                 anchor_field_coherence,
                 anchor_contradictions_highlighted: contradictions_highlighted,
+                emergent_candidates: 0,
+                emergent_concepts_active: 0,
+            };
+
+            update_anchor_registry(
+                &mut self.anchor_registry,
+                &shared_field,
+                frame_results.len(),
+                config.anchor_energy_max,
+                config.target_energy,
+                config.compression_threshold,
+            );
+
+            let emergent_candidates = discover_emergent_candidates(
+                &shared_field,
+                &self.anchor_registry,
+                config.anchor_min_persistence,
+                config.emergent_min_cluster_size,
+                config.emergent_min_anchor_support,
+                config.emergent_resonance_threshold,
+            );
+
+            for candidate in &emergent_candidates {
+                *emergent_hits.entry(candidate.id.clone()).or_default() += 1;
+                emergent_latest.insert(candidate.id.clone(), candidate.clone());
+            }
+
+            let emergent_constraints = synthesize_emergent_constraints(
+                &emergent_candidates,
+                &emergent_hits,
+                config.emergent_min_persistence,
+                config.emergent_constraint_weight,
+            );
+            for constraints in self.frames.values_mut() {
+                append_missing_constraints(constraints, &emergent_constraints);
+            }
+
+            let emergent_active = emergent_hits
+                .values()
+                .filter(|hits| **hits >= config.emergent_min_persistence.max(1))
+                .count();
+
+            let metrics = StabilizationMetrics {
+                emergent_candidates: emergent_candidates.len(),
+                emergent_concepts_active: emergent_active,
+                ..metrics
             };
 
             let iteration_hash = hash_json(&(
@@ -360,6 +442,7 @@ impl MultiFrameCognition {
                 &fused_constraints,
                 &frame_results,
                 &metrics,
+                &emergent_constraints,
             ))?;
 
             let stable_condition = previous_iteration_hash
@@ -380,7 +463,7 @@ impl MultiFrameCognition {
             previous_iteration_hash = Some(iteration_hash.clone());
 
             self.logger.record(format!(
-                "mfc:iter:{}:shared_field={} propagated={} stable={} energy_delta={} unresolved={} anchors={} overlap={} drift={} coherence={}",
+                "mfc:iter:{}:shared_field={} propagated={} stable={} energy_delta={} unresolved={} anchors={} overlap={} drift={} coherence={} emergent_candidates={} emergent_active={}",
                 iter,
                 shared_field.concept_count(),
                 propagated_count,
@@ -390,17 +473,10 @@ impl MultiFrameCognition {
                 metrics.active_anchors,
                 metrics.anchor_overlap,
                 metrics.anchor_drift,
-                metrics.anchor_field_coherence
+                metrics.anchor_field_coherence,
+                metrics.emergent_candidates,
+                metrics.emergent_concepts_active
             ));
-
-            update_anchor_registry(
-                &mut self.anchor_registry,
-                &shared_field,
-                frame_results.len(),
-                config.anchor_energy_max,
-                config.target_energy,
-                config.compression_threshold,
-            );
 
             report.push(MultiFrameIteration {
                 iteration_index: iter,
@@ -431,6 +507,11 @@ impl MultiFrameCognition {
         let stable_senses = consolidate_stable_senses(&last_frame_results);
         let clusters = last_shared_field.clusters_by_subject();
         let anchor_registry = registered_anchor_registry(&self.anchor_registry, config.anchor_min_persistence);
+        let emergent_concepts = materialize_emergent_concepts(
+            &emergent_hits,
+            &emergent_latest,
+            config.emergent_min_persistence,
+        )?;
         let anchor_basis_hash = hash_json(&anchor_registry.anchors)?;
         let self_continuity_score = last_metrics
             .as_ref()
@@ -440,6 +521,10 @@ impl MultiFrameCognition {
             .as_ref()
             .map(|m| m.anchor_drift + (m.anchor_contradictions_highlighted as i64 * 10))
             .unwrap_or(0);
+        let ontology_expansion_score = emergent_concepts
+            .iter()
+            .map(|c| (c.members.len() as i64) * (c.persistence_hits as i64))
+            .sum();
         let artifact_hash = hash_json(&(
             converged_iteration,
             &last_fused_constraints,
@@ -448,6 +533,8 @@ impl MultiFrameCognition {
             &anchor_basis_hash,
             self_continuity_score,
             external_change_score,
+            &emergent_concepts,
+            ontology_expansion_score,
         ))?;
         let consolidated_memory = ConsolidatedMemory {
             converged_iteration,
@@ -457,6 +544,8 @@ impl MultiFrameCognition {
             anchor_basis_hash,
             self_continuity_score,
             external_change_score,
+            emergent_concepts,
+            ontology_expansion_score,
             artifact_hash,
         };
 
@@ -805,6 +894,9 @@ fn update_anchor_registry(
         if point.intensity == 0 {
             continue;
         }
+        if concept.contains("emergent/") {
+            continue;
+        }
 
         if let Some(existing) = registry.anchors.iter_mut().find(|a| a.id == *concept) {
             existing.persistence_hits += 1;
@@ -836,6 +928,164 @@ fn registered_anchor_registry(registry: &AnchorRegistry, min_persistence: usize)
         .collect();
     anchors.sort_by(|a, b| a.id.cmp(&b.id).then(a.canonical_hash.cmp(&b.canonical_hash)));
     AnchorRegistry { anchors }
+}
+
+fn discover_emergent_candidates(
+    shared_field: &SemanticField,
+    registry: &AnchorRegistry,
+    anchor_min_persistence: usize,
+    min_cluster_size: usize,
+    min_anchor_support: usize,
+    resonance_threshold: i64,
+) -> Vec<EmergentConceptCandidate> {
+    let mut anchors_by_subject: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for anchor in registry
+        .anchors
+        .iter()
+        .filter(|a| a.persistence_hits >= anchor_min_persistence.max(1))
+    {
+        if let Some((subject, _)) = anchor.id.split_once(':') {
+            anchors_by_subject
+                .entry(subject.to_string())
+                .or_default()
+                .push(anchor.id.clone());
+        }
+    }
+
+    for anchors in anchors_by_subject.values_mut() {
+        anchors.sort();
+    }
+
+    let mut candidates = Vec::new();
+    for cluster in shared_field.clusters_by_subject() {
+        let members: Vec<String> = cluster
+            .members
+            .into_iter()
+            .filter(|member| !member.contains("emergent/"))
+            .collect();
+
+        if members.len() < min_cluster_size.max(1) {
+            continue;
+        }
+
+        let subject_anchors = anchors_by_subject
+            .get(&cluster.anchor)
+            .cloned()
+            .unwrap_or_default();
+        if subject_anchors.len() < min_anchor_support.max(1) {
+            continue;
+        }
+
+        let member_set: BTreeSet<String> = members.iter().cloned().collect();
+        let mut aligned: Vec<String> = subject_anchors
+            .into_iter()
+            .filter(|a| member_set.contains(a))
+            .collect();
+        aligned.sort();
+        if aligned.len() < min_anchor_support.max(1) {
+            continue;
+        }
+
+        let resonance_score = cluster.total_intensity.abs()
+            + ((aligned.len() as i64) * 15)
+            + ((members.len() as i64) * 5);
+        if resonance_score < resonance_threshold.max(0) {
+            continue;
+        }
+
+        let basis_head = aligned
+            .first()
+            .cloned()
+            .unwrap_or_else(|| cluster.anchor.clone());
+        let id = format!(
+            "emergent:{}:{}:{}",
+            cluster.anchor,
+            basis_head.replace(':', "_"),
+            members.len()
+        );
+
+        candidates.push(EmergentConceptCandidate {
+            id,
+            subject: cluster.anchor.clone(),
+            basis_anchors: aligned,
+            members,
+            resonance_score,
+        });
+    }
+
+    candidates.sort_by(|a, b| a.id.cmp(&b.id));
+    candidates
+}
+
+fn synthesize_emergent_constraints(
+    candidates: &[EmergentConceptCandidate],
+    hits: &BTreeMap<String, usize>,
+    min_persistence: usize,
+    weight: u8,
+) -> Vec<SemanticConstraint> {
+    let mut out = Vec::new();
+    for candidate in candidates {
+        let persistence = hits.get(&candidate.id).copied().unwrap_or(0);
+        if persistence < min_persistence.max(1) {
+            continue;
+        }
+
+        let predicate = format!("emergent/{}", candidate.id.replace(':', "_"));
+        out.push(SemanticConstraint::assertion(
+            candidate.subject.clone(),
+            predicate,
+            true,
+            weight.max(1),
+        ));
+    }
+
+    out.sort_by(|a, b| {
+        a.subject
+            .cmp(&b.subject)
+            .then(a.predicate.cmp(&b.predicate))
+            .then(a.object.cmp(&b.object))
+            .then(a.affirmed.cmp(&b.affirmed))
+            .then(a.weight.cmp(&b.weight))
+    });
+    out
+}
+
+fn materialize_emergent_concepts(
+    hits: &BTreeMap<String, usize>,
+    latest: &BTreeMap<String, EmergentConceptCandidate>,
+    min_persistence: usize,
+) -> Result<Vec<EmergentConcept>, InvariantViolation> {
+    let mut out = Vec::new();
+    for (id, persistence_hits) in hits {
+        if *persistence_hits < min_persistence.max(1) {
+            continue;
+        }
+        let Some(candidate) = latest.get(id) else {
+            continue;
+        };
+
+        let canonical_hash = hash_json(&(
+            &candidate.id,
+            &candidate.subject,
+            &candidate.basis_anchors,
+            &candidate.members,
+            candidate.resonance_score,
+            persistence_hits,
+        ))?;
+
+        out.push(EmergentConcept {
+            id: candidate.id.clone(),
+            subject: candidate.subject.clone(),
+            basis_anchors: candidate.basis_anchors.clone(),
+            members: candidate.members.clone(),
+            resonance_score: candidate.resonance_score,
+            persistence_hits: *persistence_hits,
+            canonical_hash,
+        });
+    }
+
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(out)
 }
 
 fn perturbation_returns_anchor(

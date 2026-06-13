@@ -35,6 +35,9 @@ jobs:
       - name: Enforce Phase 4.6 acceptance gates
         run: cargo test --test phase46_anchor_weighted
 
+      - name: Enforce Phase 4.7 acceptance gates
+        run: cargo test --test phase47_emergent_concepts
+
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
 
@@ -49,3 +52,6 @@ jobs:
 
       - name: Validate anchor-weighted interpretation demo
         run: cargo run --example phase46_anchor_weighted --quiet
+
+      - name: Validate emergent concept formation demo
+        run: cargo run --example phase47_emergent_concepts --quiet

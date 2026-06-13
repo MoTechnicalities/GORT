@@ -2,7 +2,7 @@ use rugc::{DeterminismVerifier, MultiFrameCognition, MultiFrameConfig, SemanticC
 
 fn cfg(workers: usize) -> MultiFrameConfig {
     MultiFrameConfig {
-        iterations: 10,
+        iterations: 12,
         worker_count: workers,
         ambiguity_margin: 5000,
         target_energy: 500,
@@ -31,6 +31,7 @@ fn build() -> MultiFrameCognition {
             SemanticConstraint::assertion("light", "wave", true, 92),
             SemanticConstraint::assertion("light", "particle", true, 88),
             SemanticConstraint::assertion("vacuum", "has_medium", false, 74),
+            SemanticConstraint::assertion("photon", "is_quantized", true, 64),
         ],
     );
     mfc.register_frame(
@@ -39,6 +40,7 @@ fn build() -> MultiFrameCognition {
             SemanticConstraint::assertion("light", "wave", false, 30),
             SemanticConstraint::assertion("light", "particle", true, 65),
             SemanticConstraint::assertion("vacuum", "has_medium", true, 20),
+            SemanticConstraint::assertion("photon", "is_quantized", true, 58),
         ],
     );
     mfc.register_frame(
@@ -47,26 +49,31 @@ fn build() -> MultiFrameCognition {
             SemanticConstraint::assertion("light", "wave", true, 50),
             SemanticConstraint::assertion("light", "particle", true, 52),
             SemanticConstraint::assertion("vacuum", "has_medium", false, 40),
+            SemanticConstraint::assertion("photon", "is_quantized", true, 60),
         ],
     );
     mfc
 }
 
 #[test]
-fn anchor_weighted_metrics_improve_during_loop() {
+fn emergent_concepts_form_from_anchor_aligned_clusters() {
     let mut mfc = build();
     let report = mfc.run(cfg(4)).expect("run should succeed");
-    assert!(report.iterations.len() >= 2);
 
-    let first = &report.iterations[0].metrics;
-    let last = &report.iterations[report.iterations.len() - 1].metrics;
-
-    assert!(last.anchor_field_coherence >= first.anchor_field_coherence);
-    assert!(last.anchor_drift <= first.anchor_drift || last.anchor_drift <= 2);
+    assert!(!report.consolidated_memory.emergent_concepts.is_empty());
+    assert!(report
+        .consolidated_memory
+        .emergent_concepts
+        .iter()
+        .all(|c| c.persistence_hits >= 2));
+    assert!(report
+        .consolidated_memory
+        .ontology_expansion_score
+        > 0);
 }
 
 #[test]
-fn anchor_weighted_interpretation_is_worker_invariant() {
+fn emergent_concept_registry_is_worker_invariant() {
     let verifier = DeterminismVerifier::new();
     let mut a = build();
     let mut b = build();
@@ -74,17 +81,29 @@ fn anchor_weighted_interpretation_is_worker_invariant() {
     let ra = a.run(cfg(1)).expect("run A should succeed");
     let rb = b.run(cfg(8)).expect("run B should succeed");
 
-    assert_eq!(ra.consolidated_memory.anchor_basis_hash, rb.consolidated_memory.anchor_basis_hash);
-    assert!(verifier.is_replay_stable(&ra.consolidated_memory, &rb.consolidated_memory).unwrap_or(false));
+    assert_eq!(
+        ra.consolidated_memory.emergent_concepts,
+        rb.consolidated_memory.emergent_concepts
+    );
+    assert!(verifier
+        .is_replay_stable(&ra.consolidated_memory, &rb.consolidated_memory)
+        .unwrap_or(false));
 }
 
 #[test]
-fn anchor_guided_fusion_reduces_highlighted_contradictions() {
+fn emergent_constraints_expand_internal_ontology() {
     let mut mfc = build();
     let report = mfc.run(cfg(4)).expect("run should succeed");
+    let last = report
+        .iterations
+        .last()
+        .expect("expected at least one iteration");
 
-    let first = &report.iterations[0].metrics;
-    let last = &report.iterations[report.iterations.len() - 1].metrics;
-
-    assert!(last.anchor_contradictions_highlighted <= first.anchor_contradictions_highlighted);
+    assert!(last.metrics.emergent_concepts_active > 0);
+    assert!(last.metrics.emergent_candidates > 0);
+    assert!(report
+        .consolidated_memory
+        .fused_constraints
+        .iter()
+        .any(|c| c.predicate.starts_with("emergent/")));
 }
