@@ -62,11 +62,41 @@ fn main() {
         );
     }
 
+    // 4b) Multi-sense disambiguation by field interference
+    let ambiguity_margin = 5000;
+    let disambiguation = engine.disambiguate_subject_senses_with_margin(
+        &exact_field,
+        "light",
+        ambiguity_margin,
+    );
+
+    if let Some(decision) = &disambiguation {
+        println!("4b. Disambiguation for '{}':", decision.subject);
+        println!("   selected: {}", decision.selected_concept);
+        println!(
+            "   gap: {}, unresolved: {} (margin <= {})",
+            decision.score_gap, decision.unresolved, ambiguity_margin
+        );
+        for candidate in &decision.candidates {
+            println!(
+                "   {} -> support: {}, interference: {}, score: {}",
+                candidate.concept, candidate.support, candidate.interference, candidate.score
+            );
+        }
+    }
+
     // 5) Nodes -> Closure
     let mut frame = CognitiveFrame::new("phase2: light duality");
     for node in nodes {
         frame.add_node(node);
     }
+
+    if let Some(decision) = disambiguation {
+        if decision.unresolved {
+            frame.mark_unresolved_subject(decision.subject);
+        }
+    }
+
     let (closed, transition) = frame.attempt_closure();
 
     println!("5. Closure status: {} -> {}", frame.closure_status(), closed.closure_status());

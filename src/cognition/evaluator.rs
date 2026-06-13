@@ -15,6 +15,23 @@ pub enum ConstraintStatus {
     Violated,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SenseInterferenceScore {
+    pub concept: String,
+    pub support: i64,
+    pub interference: i64,
+    pub score: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DisambiguationDecision {
+    pub subject: String,
+    pub selected_concept: String,
+    pub score_gap: i64,
+    pub unresolved: bool,
+    pub candidates: Vec<SenseInterferenceScore>,
+}
+
 #[derive(Debug, Default)]
 pub struct ConstraintEvalEngine;
 
@@ -82,6 +99,82 @@ impl ConstraintEvalEngine {
         };
 
         ResonanceTransform::new(mode, magnitude, arithmetic).apply(field);
+    }
+
+    /// Phase 2 disambiguation: resolve competing senses for one subject by field interference.
+    ///
+    /// Scores are deterministic fixed-point integers:
+    /// - `support = intensity * 1000`
+    /// - `interference = Σ(((self.intensity - other.intensity) * 100) / (distance + 1))`
+    /// - `score = support + interference`
+    ///
+    /// If scores tie, lexicographic concept order is used for stable selection.
+    pub fn disambiguate_subject_senses(
+        &self,
+        field: &SemanticField,
+        subject: &str,
+    ) -> Option<DisambiguationDecision> {
+        self.disambiguate_subject_senses_with_margin(field, subject, 0)
+    }
+
+    /// Deterministic thresholding for ambiguity handling.
+    ///
+    /// A decision is marked unresolved when the top-2 score gap is <= ambiguity_margin.
+    pub fn disambiguate_subject_senses_with_margin(
+        &self,
+        field: &SemanticField,
+        subject: &str,
+        ambiguity_margin: i64,
+    ) -> Option<DisambiguationDecision> {
+        let prefix = format!("{}:", subject);
+        let candidates: Vec<(String, FieldPoint)> = field
+            .ordered_concepts()
+            .filter(|(concept, _)| concept.starts_with(&prefix))
+            .map(|(concept, point)| (concept.clone(), point.clone()))
+            .collect();
+
+        if candidates.len() < 2 {
+            return None;
+        }
+
+        let mut scored: Vec<SenseInterferenceScore> = Vec::with_capacity(candidates.len());
+        for (concept, point) in &candidates {
+            let support = point.intensity * 1000;
+            let mut interference = 0;
+
+            for (other_concept, other_point) in &candidates {
+                if concept == other_concept {
+                    continue;
+                }
+
+                let distance = point.position.manhattan_distance(&other_point.position) + 1;
+                interference += ((point.intensity - other_point.intensity) * 100) / distance;
+            }
+
+            scored.push(SenseInterferenceScore {
+                concept: concept.clone(),
+                support,
+                interference,
+                score: support + interference,
+            });
+        }
+
+        scored.sort_by(|a, b| b.score.cmp(&a.score).then(a.concept.cmp(&b.concept)));
+
+        let score_gap = if scored.len() >= 2 {
+            scored[0].score - scored[1].score
+        } else {
+            i64::MAX
+        };
+        let unresolved = score_gap <= ambiguity_margin.max(0);
+
+        Some(DisambiguationDecision {
+            subject: subject.to_string(),
+            selected_concept: scored[0].concept.clone(),
+            score_gap,
+            unresolved,
+            candidates: scored,
+        })
     }
 }
 
@@ -198,5 +291,92 @@ mod tests {
 
         let intensity = field.concept("light:wave").map(|p| p.intensity).unwrap_or_default();
         assert_eq!(intensity % 4, 0);
+    }
+
+    #[test]
+    fn disambiguates_multi_sense_subject_via_interference() {
+        let engine = ConstraintEvalEngine::new();
+        let constraints = vec![
+            SemanticConstraint::assertion("light", "wave", true, 92),
+            SemanticConstraint::assertion("light", "particle", true, 88),
+            SemanticConstraint::assertion("light", "illusion", false, 60),
+        ];
+
+        let nodes = engine.constraints_to_nodes(&constraints);
+        let mut field = engine.project_nodes_to_field(&nodes);
+        engine.apply_resonance_transform(&mut field, &nodes);
+
+        let decision = engine
+            .disambiguate_subject_senses(&field, "light")
+            .expect("expected multi-sense candidates");
+
+        assert_eq!(decision.subject, "light");
+        assert_eq!(decision.candidates.len(), 3);
+        assert_eq!(decision.selected_concept, "light:wave");
+        assert!(!decision.unresolved);
+        assert!(decision.score_gap > 0);
+
+        for pair in decision.candidates.windows(2) {
+            assert!(pair[0].score >= pair[1].score);
+        }
+    }
+
+    #[test]
+    fn disambiguation_tie_breaker_is_lexicographic() {
+        let engine = ConstraintEvalEngine::new();
+        let mut field = SemanticField::new();
+        field.upsert_concept(
+            "light:alpha",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 10,
+            },
+        );
+        field.upsert_concept(
+            "light:beta",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 10,
+            },
+        );
+
+        let decision = engine
+            .disambiguate_subject_senses(&field, "light")
+            .expect("expected tied candidates");
+
+        assert_eq!(decision.selected_concept, "light:alpha");
+        assert_eq!(decision.candidates[0].score, decision.candidates[1].score);
+        assert_eq!(decision.score_gap, 0);
+        assert!(decision.unresolved);
+    }
+
+    #[test]
+    fn ambiguity_margin_marks_near_ties_unresolved() {
+        let engine = ConstraintEvalEngine::new();
+        let mut field = SemanticField::new();
+        field.upsert_concept(
+            "light:wave",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 100,
+            },
+        );
+        field.upsert_concept(
+            "light:particle",
+            FieldPoint {
+                position: Coordinate3::new(0, 1, 0),
+                intensity: 99,
+            },
+        );
+
+        let strict = engine
+            .disambiguate_subject_senses_with_margin(&field, "light", 0)
+            .expect("expected candidates");
+        assert!(!strict.unresolved);
+
+        let tolerant = engine
+            .disambiguate_subject_senses_with_margin(&field, "light", 5000)
+            .expect("expected candidates");
+        assert!(tolerant.unresolved);
     }
 }

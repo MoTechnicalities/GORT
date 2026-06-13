@@ -30,6 +30,7 @@ impl SemanticNode {
 pub struct CognitiveFrame {
     pub topic: String,
     pub nodes: Vec<SemanticNode>,
+    pub unresolved_subjects: Vec<String>,
     pub status: ClosureStatus,
     pub audit: Vec<String>,
 }
@@ -39,6 +40,7 @@ impl CognitiveFrame {
         Self {
             topic: topic.into(),
             nodes: Vec::new(),
+            unresolved_subjects: Vec::new(),
             status: ClosureStatus::Open,
             audit: vec!["frame initialized".to_string()],
         }
@@ -48,6 +50,18 @@ impl CognitiveFrame {
         self.audit.push(format!("added node {}", node.id));
         self.nodes.push(node);
     }
+
+    pub fn mark_unresolved_subject(&mut self, subject: impl Into<String>) {
+        let subject = subject.into();
+        if self.unresolved_subjects.iter().any(|s| s == &subject) {
+            return;
+        }
+
+        self.audit
+            .push(format!("disambiguation unresolved for subject {}", subject));
+        self.unresolved_subjects.push(subject);
+        self.unresolved_subjects.sort();
+    }
 }
 
 impl GeometricState for CognitiveFrame {
@@ -56,6 +70,9 @@ impl GeometricState for CognitiveFrame {
         h.update(self.topic.as_bytes());
         for node in &self.nodes {
             h.update(node.id.as_bytes());
+        }
+        for subject in &self.unresolved_subjects {
+            h.update(subject.as_bytes());
         }
         format!("{:x}", h.finalize())
     }
@@ -84,6 +101,24 @@ impl GeometricState for CognitiveFrame {
                 to_status: ClosureStatus::Partial,
                 resolved_by_last_user_turn: false,
                 reasoning_summary: "missing semantic anchors".to_string(),
+            };
+            return (next, Some(transition));
+        }
+
+        if !next.unresolved_subjects.is_empty() {
+            next.status = ClosureStatus::Partial;
+            next.audit.push(format!(
+                "closure attempted: unresolved senses for {}",
+                next.unresolved_subjects.join(",")
+            ));
+            let transition = ClosureTransition {
+                from_status: self.status,
+                to_status: ClosureStatus::Partial,
+                resolved_by_last_user_turn: false,
+                reasoning_summary: format!(
+                    "unresolved multi-sense disambiguation: {}",
+                    next.unresolved_subjects.join(",")
+                ),
             };
             return (next, Some(transition));
         }
@@ -132,5 +167,18 @@ mod tests {
         let frame = CognitiveFrame::new("test");
         let (next, _) = frame.attempt_closure();
         assert_eq!(next.status, ClosureStatus::Partial);
+    }
+
+    #[test]
+    fn frame_with_unresolved_subject_stays_partial() {
+        let mut frame = CognitiveFrame::new("light");
+        frame.add_node(SemanticNode::new("light:wave", true, 90));
+        frame.mark_unresolved_subject("light");
+
+        let (next, transition) = frame.attempt_closure();
+        assert_eq!(next.status, ClosureStatus::Partial);
+
+        let transition = transition.expect("expected transition");
+        assert!(transition.reasoning_summary.contains("unresolved multi-sense disambiguation"));
     }
 }

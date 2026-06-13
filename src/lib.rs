@@ -47,7 +47,9 @@ pub mod cognition {
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
     pub use evaluator::ConstraintStatus;
+    pub use evaluator::DisambiguationDecision;
     pub use evaluator::ConstraintEvalEngine;
+    pub use evaluator::SenseInterferenceScore;
     pub use node::{CognitiveFrame, SemanticNode};
     pub use scheduler::{ScheduledTask, TaskScheduler};
 }
@@ -71,8 +73,8 @@ pub use geom::{
     SemanticField,
 };
 pub use cognition::{
-    CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, ScheduledTask,
-    SemanticConstraint, SemanticNode, TaskScheduler,
+    CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
+    ScheduledTask, SemanticConstraint, SemanticNode, SenseInterferenceScore, TaskScheduler,
 };
 pub use runtime::{AuditLogger, DeterminismVerifier, DeterministicRuntime};
 
