@@ -15,6 +15,49 @@ RUGC rejects the statistical/probabilistic paradigm that dominates modern AI. In
 
 This is not pattern-matching. This is cognition.
 
+## Design Axiom: Geometry Emerges From Stability
+
+RUGC adopts a developmental architecture where geometry is not assumed at initialization.
+
+Naive paradigm:
+
+Predefined geometry -> learning inside it -> reasoning on top of it.
+
+RUGC paradigm:
+
+Stable identity -> exploratory interaction -> relational regularities -> endogenous geometry -> understanding -> intelligence.
+
+### Core Axiom
+
+**GeometricState is a state capable of generating geometry.**
+
+### Container vs Generative Geometry
+
+- Container geometry: geometry is predefined and cognition is inserted into it
+- Generative geometry: stability and continuity are established first, then geometry is discovered from repeated interaction
+
+RUGC explicitly follows the generative model.
+
+### Developmental Sequence in RUGC
+
+- Invariant -> state -> attractor -> play -> relationship discovery -> geometry -> understanding -> intelligence
+- `GeometricState` provides the persistent substrate and reference stability
+- Concept anchors serve as attractors that preserve identity and continuity
+- Multi-frame loops provide deterministic exploratory interaction across perspectives
+- Emergent concepts encode newly stabilized relational structure
+
+### Why the Current Order Is Intentional
+
+RUGC is not missing geometry. RUGC is implementing the preconditions that make geometry meaningful and auditable.
+
+- Without persistent state, there is no stable reference frame
+- Without a stable reference frame, relational terms (near/far, same/different, before/after) are operationally undefined
+- Therefore, geometry is a developmental consequence, not a bootstrap primitive
+
+This is why geometric geometry is treated as a later phase milestone, not a starting data type.
+
+For the formal architecture statement, see `ARCHITECTURE_AXIOMS.md`.
+
 ## Core Architecture
 
 RUGC is organized into three conceptual layers:
@@ -293,6 +336,11 @@ These gates are asserted in `tests/phase47_emergent_concepts.rs` and run in CI.
 - Mechanical proof of invariant satisfaction
 - Safety properties formalized in Coq/Lean
 - Determinism certified at proof level
+
+### Phase 5.1: Emergent Cognitive Geometry (Planned)
+- Promote stable relational regularities into explicit geometric coordinate structures
+- Learn geometry from anchor-preserving developmental interaction traces
+- Establish endogenous distance, topology, and transformation semantics from replay-stable histories
 
 ## Integration with UGC-Model
 
