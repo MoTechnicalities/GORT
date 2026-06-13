@@ -123,6 +123,12 @@ Constraint satisfaction and conflict detection:
 cargo run --example geometric_constraint
 ```
 
+Phase 3 multi-frame deterministic cognition demo:
+
+```bash
+cargo run --example phase3_multiframe
+```
+
 ### Run Tests
 
 ```bash
@@ -195,6 +201,14 @@ RUGC is the first system designed for **actual cognition**, not statistical fitt
 - Gate D: Parallel contradiction resolution outputs deterministic resolved constraints
 
 These gates are asserted in `tests/phase3_acceptance.rs` and run in CI.
+
+### Phase 4: Multi-Frame Cognition (In Progress)
+✅ Multi-frame deterministic loop: evaluate -> transform -> resolve -> stabilize -> repeat
+✅ Cross-frame field sharing and deterministic constraint propagation
+✅ Resonance-driven inference in iterative frame updates
+✅ Semantic field normalization, compression, and concept clustering primitives
+- Multi-frame contradiction negotiation policies (advanced)
+- Long-horizon iterative reasoning with bounded convergence proofs
 
 ### Phase 4: Cross-Lingual Auditing (Planned)
 - Canonical token normalization across languages

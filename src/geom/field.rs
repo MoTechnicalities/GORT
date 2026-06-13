@@ -11,6 +11,13 @@ pub struct FieldPoint {
     pub intensity: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConceptCluster {
+    pub anchor: String,
+    pub members: Vec<String>,
+    pub total_intensity: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SemanticField {
     concept_map: BTreeMap<String, FieldPoint>,
@@ -53,6 +60,74 @@ impl SemanticField {
             point.intensity = mapper(point.intensity);
         }
     }
+
+    pub fn total_energy(&self) -> i64 {
+        self.concept_map.values().map(|p| p.intensity.abs()).sum()
+    }
+
+    pub fn normalize_energy(&mut self, target_energy: i64) {
+        let current = self.total_energy();
+        let target = target_energy.max(0);
+        if current == 0 || target == current {
+            return;
+        }
+
+        for point in self.concept_map.values_mut() {
+            let num = point.intensity * target;
+            let half = current / 2;
+            point.intensity = if num >= 0 {
+                (num + half) / current
+            } else {
+                (num - half) / current
+            };
+        }
+    }
+
+    pub fn compress_by_intensity(&mut self, min_abs_intensity: i64) {
+        let threshold = min_abs_intensity.max(0);
+        self.concept_map.retain(|_, point| point.intensity.abs() >= threshold);
+    }
+
+    pub fn canonical_concepts(&self) -> Vec<String> {
+        self.concept_map.keys().cloned().collect()
+    }
+
+    pub fn merge_from(&mut self, other: &SemanticField) {
+        for (concept, point) in other.ordered_concepts() {
+            if let Some(existing) = self.concept_map.get_mut(concept) {
+                existing.intensity += point.intensity;
+            } else {
+                self.concept_map.insert(concept.clone(), point.clone());
+            }
+        }
+    }
+
+    pub fn clusters_by_subject(&self) -> Vec<ConceptCluster> {
+        let mut grouped: BTreeMap<String, Vec<(String, i64)>> = BTreeMap::new();
+        for (concept, point) in self.ordered_concepts() {
+            let anchor = concept
+                .split_once(':')
+                .map(|(head, _)| head.to_string())
+                .unwrap_or_else(|| concept.clone());
+            grouped
+                .entry(anchor)
+                .or_default()
+                .push((concept.clone(), point.intensity));
+        }
+
+        grouped
+            .into_iter()
+            .map(|(anchor, mut members)| {
+                members.sort_by(|a, b| a.0.cmp(&b.0));
+                let total_intensity = members.iter().map(|(_, intensity)| *intensity).sum();
+                ConceptCluster {
+                    anchor,
+                    members: members.into_iter().map(|(concept, _)| concept).collect(),
+                    total_intensity,
+                }
+            })
+            .collect()
+    }
 }
 
 impl Default for SemanticField {
@@ -85,5 +160,62 @@ mod tests {
 
         let concepts: Vec<&str> = field.ordered_concepts().map(|(k, _)| k.as_str()).collect();
         assert_eq!(concepts, vec!["alpha", "zeta"]);
+    }
+
+    #[test]
+    fn normalization_and_compression_are_deterministic() {
+        let mut field = SemanticField::new();
+        field.upsert_concept(
+            "light:wave",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 100,
+            },
+        );
+        field.upsert_concept(
+            "light:particle",
+            FieldPoint {
+                position: Coordinate3::new(1, 0, 0),
+                intensity: 20,
+            },
+        );
+        field.normalize_energy(60);
+        field.compress_by_intensity(9);
+
+        let concepts = field.canonical_concepts();
+        assert_eq!(concepts, vec!["light:particle", "light:wave"]);
+        assert_eq!(field.total_energy(), 60);
+    }
+
+    #[test]
+    fn subject_clusters_are_stable() {
+        let mut field = SemanticField::new();
+        field.upsert_concept(
+            "light:wave",
+            FieldPoint {
+                position: Coordinate3::new(0, 0, 0),
+                intensity: 10,
+            },
+        );
+        field.upsert_concept(
+            "light:particle",
+            FieldPoint {
+                position: Coordinate3::new(0, 1, 0),
+                intensity: 8,
+            },
+        );
+        field.upsert_concept(
+            "vacuum:medium",
+            FieldPoint {
+                position: Coordinate3::new(2, 0, 0),
+                intensity: -7,
+            },
+        );
+
+        let clusters = field.clusters_by_subject();
+        assert_eq!(clusters.len(), 2);
+        assert_eq!(clusters[0].anchor, "light");
+        assert_eq!(clusters[0].members, vec!["light:particle", "light:wave"]);
+        assert_eq!(clusters[0].total_intensity, 18);
     }
 }

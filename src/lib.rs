@@ -43,6 +43,7 @@ pub mod cognition {
     pub mod constraint;
     pub mod evaluator;
     pub mod scheduler;
+    pub mod multiframe;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -51,6 +52,10 @@ pub mod cognition {
     pub use evaluator::ParallelResolutionSummary;
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
+    pub use multiframe::{
+        FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
+        MultiFrameReport,
+    };
     pub use node::{CognitiveFrame, SemanticNode};
     pub use scheduler::{ScheduledTask, TaskScheduler};
 }
@@ -75,7 +80,8 @@ pub use geom::{
 };
 pub use cognition::{
     CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, DisambiguationDecision,
-    ParallelResolutionSummary, ScheduledTask, SemanticConstraint, SemanticNode,
+    FrameIterationResult, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
+    MultiFrameReport, ParallelResolutionSummary, ScheduledTask, SemanticConstraint, SemanticNode,
     SenseInterferenceScore, TaskScheduler,
 };
 pub use runtime::{AuditLogger, DeterminismVerifier, DeterministicRuntime};

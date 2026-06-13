@@ -28,3 +28,6 @@ jobs:
 
       - name: Validate phase pipeline example
         run: cargo run --example phase2_pipeline --quiet
+
+      - name: Validate multi-frame demo example
+        run: cargo run --example phase3_multiframe --quiet

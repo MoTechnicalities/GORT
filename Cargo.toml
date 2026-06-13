@@ -30,3 +30,7 @@ path = "examples/geometric_constraint.rs"
 [[example]]
 name = "phase2_pipeline"
 path = "examples/phase2_pipeline.rs"
+
+[[example]]
+name = "phase3_multiframe"
+path = "examples/phase3_multiframe.rs"
