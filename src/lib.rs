@@ -44,6 +44,7 @@ pub mod cognition {
     pub mod evaluator;
     pub mod scheduler;
     pub mod multiframe;
+    pub mod phase61_structural_recovery;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -76,6 +77,10 @@ pub mod cognition {
     };
     pub use node::{CognitiveFrame, SemanticNode};
     pub use scheduler::{ScheduledTask, TaskScheduler};
+    pub use phase61_structural_recovery::{
+        Phase61RuntimePolicy, Phase61SignalSnapshot, Phase61StructuralRecoveryConfig,
+        Phase61StructuralRecoveryState,
+    };
 }
 
 pub mod runtime {
@@ -134,6 +139,10 @@ pub use cognition::{
     EnergyMinimizingTrajectory,
     EmergentConcept,
     FlowPrediction,
+    Phase61RuntimePolicy,
+    Phase61SignalSnapshot,
+    Phase61StructuralRecoveryConfig,
+    Phase61StructuralRecoveryState,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,

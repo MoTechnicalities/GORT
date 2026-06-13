@@ -1,6 +1,9 @@
 use crate::cognition::constraint::SemanticConstraint;
 use crate::cognition::evaluator::ConstraintEvalEngine;
 use crate::cognition::node::CognitiveFrame;
+use crate::cognition::phase61_structural_recovery::{
+    Phase61SignalSnapshot, Phase61StructuralRecoveryConfig, Phase61StructuralRecoveryState,
+};
 use crate::cognition::scheduler::TaskScheduler;
 use crate::geom::field::{ConceptCluster, SemanticField};
 use crate::geom::invariants::InvariantViolation;
@@ -280,6 +283,8 @@ impl MultiFrameCognition {
         let mut last_frame_results: Vec<FrameIterationResult> = Vec::new();
         let mut last_shared_field = SemanticField::new();
         let mut last_metrics: Option<StabilizationMetrics> = None;
+        let phase61_config = Phase61StructuralRecoveryConfig::default();
+        let mut phase61_state = Phase61StructuralRecoveryState::default();
 
         self.logger.record(format!(
             "mfc:start frames={} iterations={}",
@@ -289,6 +294,38 @@ impl MultiFrameCognition {
 
         for iter in 0..iterations {
             self.logger.record(format!("mfc:iter:{}:start", iter));
+
+            let signal = last_metrics
+                .as_ref()
+                .map(|m| Phase61SignalSnapshot {
+                    has_previous_iteration: previous_iteration_hash.is_some(),
+                    contradiction_count: m.contradiction_count,
+                    unresolved_subjects: m.unresolved_subjects,
+                    anchor_overlap: m.anchor_overlap,
+                    anchor_field_coherence: m.anchor_field_coherence,
+                    anchor_drift: m.anchor_drift,
+                    energy_delta: m.energy_delta,
+                    energy_delta_threshold: config.energy_delta_threshold,
+                })
+                .unwrap_or(Phase61SignalSnapshot {
+                    has_previous_iteration: previous_iteration_hash.is_some(),
+                    energy_delta_threshold: config.energy_delta_threshold,
+                    ..Phase61SignalSnapshot::default()
+                });
+
+            let phase61_policy = phase61_state.build_runtime_policy(
+                iter,
+                config.anchor_min_persistence,
+                config.anchor_pull_strength,
+                config.ambiguity_margin,
+                signal,
+                &phase61_config,
+            );
+
+            let effective_anchor_min_persistence = phase61_policy.effective_anchor_min_persistence;
+            let effective_anchor_pull_strength = phase61_policy.effective_anchor_pull_strength;
+            let sweep_ambiguity_margin = phase61_policy.sweep_ambiguity_margin;
+
             let mut frame_results = Vec::new();
             let mut resolved_by_frame: BTreeMap<String, Vec<SemanticConstraint>> = BTreeMap::new();
             let mut fields_by_frame = BTreeMap::new();
@@ -345,6 +382,35 @@ impl MultiFrameCognition {
                         ));
                     }
                 }
+
+                if phase61_policy.active && !frame.unresolved_subjects.is_empty() {
+                    for _ in 0..phase61_policy.extra_disambiguation_sweeps.max(1) {
+                        let unresolved_before = frame.unresolved_subjects.clone();
+                        for subject in unresolved_before {
+                            if let Some(decision) = self.engine.disambiguate_subject_senses_with_margin(
+                                &field,
+                                &subject,
+                                sweep_ambiguity_margin,
+                            ) {
+                                if !decision.unresolved {
+                                    frame.unresolved_subjects.retain(|s| s != &subject);
+                                    if let Some(entry) = selected_senses
+                                        .iter_mut()
+                                        .find(|(s, _, _, _)| s == &subject)
+                                    {
+                                        entry.1 = decision.selected_concept.clone();
+                                        entry.2 = false;
+                                        entry.3 = decision.score_gap;
+                                    }
+                                }
+                            }
+                        }
+                        frame.unresolved_subjects.sort();
+                        if frame.unresolved_subjects.is_empty() {
+                            break;
+                        }
+                    }
+                }
                 selected_senses.sort();
 
                 let (closed, transition) = frame.attempt_closure();
@@ -383,18 +449,18 @@ impl MultiFrameCognition {
             apply_anchor_persistence(
                 &mut shared_field,
                 &self.anchor_registry,
-                config.anchor_pull_strength,
+                effective_anchor_pull_strength,
                 config.target_energy,
                 config.compression_threshold,
-                config.anchor_min_persistence,
+                effective_anchor_min_persistence,
             );
 
             let contradictions_highlighted = apply_anchor_weighted_interpretation(
                 &mut shared_field,
                 &self.anchor_registry,
-                config.anchor_min_persistence,
+                effective_anchor_min_persistence,
                 config.anchor_alignment_window,
-                config.anchor_pull_strength,
+                effective_anchor_pull_strength,
                 config.anchor_contradiction_highlight,
                 config.target_energy,
                 config.compression_threshold,
@@ -404,7 +470,7 @@ impl MultiFrameCognition {
             let fused_constraints = anchor_guided_fusion(
                 fused_constraints,
                 &self.anchor_registry,
-                config.anchor_min_persistence,
+                effective_anchor_min_persistence,
                 &shared_field,
                 config.anchor_fusion_bias,
             );
@@ -439,7 +505,7 @@ impl MultiFrameCognition {
                 gaps[gaps.len() / 2]
             };
 
-            let active_anchor_map = active_anchor_energies(&self.anchor_registry, config.anchor_min_persistence);
+            let active_anchor_map = active_anchor_energies(&self.anchor_registry, effective_anchor_min_persistence);
             let (anchor_overlap, anchor_drift, anchor_stability, anchor_field_coherence) =
                 compute_anchor_continuity(
                     &shared_field,
@@ -457,7 +523,7 @@ impl MultiFrameCognition {
                     .anchor_registry
                     .anchors
                     .iter()
-                    .filter(|a| a.persistence_hits >= config.anchor_min_persistence.max(1))
+                    .filter(|a| a.persistence_hits >= effective_anchor_min_persistence.max(1))
                     .count(),
                 anchor_overlap,
                 anchor_drift,
@@ -480,7 +546,7 @@ impl MultiFrameCognition {
             let emergent_candidates = discover_emergent_candidates(
                 &shared_field,
                 &self.anchor_registry,
-                config.anchor_min_persistence,
+                effective_anchor_min_persistence,
                 config.emergent_min_cluster_size,
                 config.emergent_min_anchor_support,
                 config.emergent_resonance_threshold,
@@ -566,7 +632,7 @@ impl MultiFrameCognition {
             last_metrics = report.last().map(|r| r.metrics.clone());
             last_fused_constraints = fused_constraints;
             last_shared_field = shared_field;
-            previous_anchor_energies = active_anchor_energies(&self.anchor_registry, config.anchor_min_persistence);
+            previous_anchor_energies = active_anchor_energies(&self.anchor_registry, effective_anchor_min_persistence);
             last_frame_results = report
                 .last()
                 .map(|r| r.frame_results.clone())
@@ -1728,6 +1794,96 @@ pub fn compute_cognitive_flow_field(
         .collect();
     region_vectors.sort_by(|a, b| a.region_id.cmp(&b.region_id));
 
+    // Tighten coupling to potential descent by shaping flow with local energy geometry.
+    // We use the same deterministic persistence->energy proxy as the potential field.
+    let energy_by_region: BTreeMap<String, i64> = region_vectors
+        .iter()
+        .map(|rv| (rv.region_id.clone(), 1000 - rv.persistence_score))
+        .collect();
+
+    let attractor_basin_energy = region_vectors
+        .iter()
+        .filter(|rv| rv.is_attractor)
+        .filter_map(|rv| energy_by_region.get(&rv.region_id).copied())
+        .min()
+        .unwrap_or_else(|| energy_by_region.values().copied().min().unwrap_or(1000));
+
+    let mut region_neighbors: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    if let Some(last) = snapshots.last() {
+        let mut concept_region: BTreeMap<String, String> = BTreeMap::new();
+        for region in &last.regions {
+            for member in &region.members {
+                concept_region.insert(member.clone(), region.id.clone());
+            }
+        }
+        for n in &last.neighborhoods {
+            if let Some(src_region) = concept_region.get(&n.center) {
+                for neighbor in &n.neighbors {
+                    if let Some(dst_region) = concept_region.get(neighbor) {
+                        if src_region != dst_region {
+                            region_neighbors
+                                .entry(src_region.clone())
+                                .or_default()
+                                .insert(dst_region.clone());
+                            region_neighbors
+                                .entry(dst_region.clone())
+                                .or_default()
+                                .insert(src_region.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let attractor_epsilon: i64 = 20;
+    for rv in &mut region_vectors {
+        let current_energy = *energy_by_region.get(&rv.region_id).unwrap_or(&1000);
+        let fallback_neighbors: BTreeSet<String> = energy_by_region
+            .keys()
+            .filter(|id| **id != rv.region_id)
+            .cloned()
+            .collect();
+        let neighbors = region_neighbors
+            .get(&rv.region_id)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&fallback_neighbors);
+
+        let mut local_curvature = 0i64;
+        let mut lowest_neighbor_energy = current_energy;
+        for n in neighbors {
+            if let Some(ne) = energy_by_region.get(n) {
+                let delta = (current_energy - *ne).abs();
+                if delta > local_curvature {
+                    local_curvature = delta;
+                }
+                if *ne < lowest_neighbor_energy {
+                    lowest_neighbor_energy = *ne;
+                }
+            }
+        }
+
+        let delta_energy = lowest_neighbor_energy - current_energy;
+        let toward_basin = current_energy > attractor_basin_energy && delta_energy < 0;
+        if toward_basin {
+            let downhill = (current_energy - lowest_neighbor_energy).max(1);
+            let curvature_boost = (local_curvature / 8).max(0);
+            let boosted = downhill + curvature_boost;
+
+            rv.cohesion_trend = boosted.max(rv.cohesion_trend.abs());
+            rv.size_trend = (rv.size_trend + (boosted / 2)).max(1);
+        } else if delta_energy > 0 {
+            // Uphill tendency should reduce cohesion trend sign-consistently.
+            rv.cohesion_trend = -(delta_energy.max(rv.cohesion_trend.abs()));
+        }
+
+        // Damping near the basin trims orbiting tails and helps faster closure.
+        if (current_energy - attractor_basin_energy).abs() <= attractor_epsilon {
+            rv.cohesion_trend /= 2;
+            rv.size_trend /= 2;
+        }
+    }
+
     // Build concept flow vectors from last two snapshots
     let mut concept_vectors: Vec<ConceptFlowVector> = Vec::new();
     if snapshots.len() >= 2 {
@@ -1877,7 +2033,10 @@ pub fn compute_cognitive_potential_field(
         .iter()
         .map(|rv| {
             // High persistence → low potential; low persistence → high potential
-            let potential = 1000 - rv.persistence_score;
+            let descent_bonus = (rv.cohesion_trend.max(0) / 4) + (rv.size_trend.max(0) / 6);
+            let instability_penalty = rv.cohesion_trend.min(0).abs() / 5;
+            let potential = (1000 - rv.persistence_score - descent_bonus + instability_penalty)
+                .clamp(0, 4000);
             let well_depth = if rv.is_attractor {
                 rv.persistence_score as i64 * 2
             } else {
@@ -1943,43 +2102,82 @@ pub fn select_action(
     potential_field: &CognitivePotentialField,
     current_region: &str,
 ) -> Result<ActionSelectionPolicy, InvariantViolation> {
-    // Find downhill paths from current region
-    let mut downhill_paths: Vec<(Vec<String>, i64, i64)> = Vec::new();
+    select_action_with_policy(potential_field, current_region, false)
+}
+
+fn select_action_with_policy(
+    potential_field: &CognitivePotentialField,
+    current_region: &str,
+    aggressive_recovery: bool,
+) -> Result<ActionSelectionPolicy, InvariantViolation> {
+    const DELTA_EPSILON: i64 = 12;
+
+    let potential_by_region: BTreeMap<String, i64> = potential_field
+        .stability_energies
+        .iter()
+        .map(|e| (e.region_id.clone(), e.potential))
+        .collect();
+    let current_energy = *potential_by_region.get(current_region).unwrap_or(&1000);
+
+    let mut preferred: Vec<(String, i64, i64, i64)> = Vec::new(); // target, delta_energy, cost, gain
+    let mut fallback: Vec<(String, i64, i64, i64)> = Vec::new();
 
     for gradient in &potential_field.gradients {
-        if gradient.source_region == current_region && gradient.gradient > 0 {
-            // Downhill
-            let stability_gain = gradient.gradient;
-            let energy_cost = gradient.traversal_cost;
-            downhill_paths.push((
-                vec![gradient.target_region.clone()],
-                energy_cost,
-                stability_gain,
-            ));
+        if gradient.source_region != current_region {
+            continue;
+        }
+        let target_energy = *potential_by_region
+            .get(&gradient.target_region)
+            .unwrap_or(&current_energy);
+        let delta_energy = target_energy - current_energy; // negative is better
+        let gain = gradient.gradient.max(0);
+        let candidate = (
+            gradient.target_region.clone(),
+            delta_energy,
+            gradient.traversal_cost,
+            gain,
+        );
+
+        if delta_energy <= -DELTA_EPSILON {
+            preferred.push(candidate);
+        } else if delta_energy < 0 {
+            // Still downhill but below epsilon threshold: keep only as last resort.
+            fallback.push(candidate);
         }
     }
 
-    if downhill_paths.is_empty() {
-        // No downhill path; prefer staying in current region (attractor)
-        let confidence = 800;
+    let pool = if preferred.is_empty() { &fallback } else { &preferred };
+    if pool.is_empty() {
         return Ok(ActionSelectionPolicy {
             preferred_trajectory: vec![current_region.to_string()],
             energy_cost: 0,
             stability_gain: 0,
-            confidence,
+            confidence: 800,
         });
     }
 
-    // Select the path with highest stability_gain / cost ratio
-    let (path, cost, gain) = downhill_paths
-        .into_iter()
-        .max_by_key(|(_, c, g)| (*g * 1000) / (*c + 1))
-        .unwrap();
+    let picked = if aggressive_recovery {
+        // Recovery window: greedily maximize per-step drop.
+        pool.iter()
+            .min_by_key(|(_, delta, cost, _)| (*delta, *cost))
+            .cloned()
+            .expect("pool must be non-empty")
+    } else {
+        pool.iter()
+            .max_by_key(|(_, delta, cost, gain)| {
+                let drop = (-*delta).max(0);
+                ((drop * 1000) / (cost + 1), *gain)
+            })
+            .cloned()
+            .expect("pool must be non-empty")
+    };
 
-    let confidence = ((gain * 1000) / (cost + 1)).min(1000);
+    let (target, delta_energy, cost, gain) = picked;
+    let drop = (-delta_energy).max(0);
+    let confidence = ((drop * 1000) / (cost + 1)).min(1000);
 
     Ok(ActionSelectionPolicy {
-        preferred_trajectory: path,
+        preferred_trajectory: vec![target],
         energy_cost: cost,
         stability_gain: gain,
         confidence,
@@ -1997,16 +2195,36 @@ pub fn compute_energy_minimizing_trajectory(
     let mut total_energy_cost: i64 = 0;
 
     if !snapshots.is_empty() {
-        let current_region = potential_field
+        let mut current_region = potential_field
             .stability_energies
             .iter()
             .max_by_key(|e| e.potential)
             .map(|e| e.region_id.clone())
             .unwrap_or_default();
 
-        let action = select_action(&potential_field, &current_region)?;
-        total_energy_cost = action.energy_cost;
-        actions.push(action);
+        let max_steps = potential_field.stability_energies.len().clamp(1, 4);
+        let recovery_window_steps = 2usize;
+        let spike_detected = flow_field.prediction.momentum >= 100;
+
+        for step in 0..max_steps {
+            let aggressive = spike_detected && step < recovery_window_steps;
+            let action = select_action_with_policy(&potential_field, &current_region, aggressive)?;
+            total_energy_cost += action.energy_cost;
+            let next_region = action
+                .preferred_trajectory
+                .first()
+                .cloned()
+                .unwrap_or_else(|| current_region.clone());
+            actions.push(action);
+
+            if next_region == current_region {
+                break;
+            }
+            current_region = next_region;
+            if current_region == potential_field.global_minimum_region {
+                break;
+            }
+        }
     }
 
     let convergent_outcome = flow_field.prediction.convergent && total_energy_cost < 500;

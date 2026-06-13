@@ -123,6 +123,19 @@ struct VerificationCheck {
 struct VerificationOutcome {
     passed: bool,
     checks: Vec<VerificationCheck>,
+    learning_assessment: LearningAssessment,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct LearningAssessment {
+    structural_adaptation_present: bool,
+    learning_curve_iterations: usize,
+    efficiency_budget_iterations: usize,
+    efficiency_verified: bool,
+    memory_improved_after_recovery: bool,
+    memory_improvement_score: i64,
+    summary: String,
+    memory_summary: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1639,6 +1652,43 @@ fn verify_learning(
     let avg_recovery_converged = average_usize(&trained_recovery_converged);
     let avg_recovery_consistency_adv = average_i64(&recovery_consistency_advantages);
 
+    let avg_recovery_anchor_delta = average_isize(
+        &holdout_results
+            .iter()
+            .map(|r| r.trained_recovery.active_anchors as isize - r.trained_holdout.active_anchors as isize)
+            .collect::<Vec<_>>(),
+    );
+    let avg_recovery_continuity_delta = average_i64(
+        &holdout_results
+            .iter()
+            .map(|r| r.trained_recovery.self_continuity_score - r.trained_holdout.self_continuity_score)
+            .collect::<Vec<_>>(),
+    );
+    let avg_recovery_region_delta = average_isize(
+        &holdout_results
+            .iter()
+            .map(|r| r.trained_recovery.topology_regions as isize - r.trained_holdout.topology_regions as isize)
+            .collect::<Vec<_>>(),
+    );
+    let avg_recovery_stability_delta = average_i64(
+        &holdout_results
+            .iter()
+            .map(|r| r.trained_recovery.manifold_stability - r.trained_holdout.manifold_stability)
+            .collect::<Vec<_>>(),
+    );
+    let avg_recovery_external_change_delta = average_i64(
+        &holdout_results
+            .iter()
+            .map(|r| r.trained_recovery.external_change_score - r.trained_holdout.external_change_score)
+            .collect::<Vec<_>>(),
+    );
+    let avg_recovery_self_consistency_delta = average_i64(
+        &holdout_results
+            .iter()
+            .map(|r| r.trained_recovery.self_consistency - r.trained_holdout.self_consistency)
+            .collect::<Vec<_>>(),
+    );
+
     let checks = vec![
         VerificationCheck {
             name: "holdout battery size meets minimum".to_string(),
@@ -1715,9 +1765,62 @@ fn verify_learning(
         },
     ];
 
+    let efficiency_verified = avg_recovery_converged <= rubric.max_average_recovery_converged_iteration;
+    let structural_adaptation_present = checks
+        .iter()
+        .filter(|c| c.name != "trained learner recovers within speed budget")
+        .all(|c| c.passed);
+    let memory_improvement_score = [
+        (avg_recovery_anchor_delta > 0) as i64,
+        (avg_recovery_continuity_delta > 0) as i64,
+        (avg_recovery_region_delta > 0) as i64,
+        (avg_recovery_stability_delta >= 0) as i64,
+        (avg_recovery_external_change_delta < 0) as i64,
+        (avg_recovery_self_consistency_delta >= 0) as i64,
+    ]
+    .into_iter()
+    .sum::<i64>();
+    let memory_improved_after_recovery = memory_improvement_score >= 4;
+
+    let learning_assessment = LearningAssessment {
+        structural_adaptation_present,
+        learning_curve_iterations: avg_recovery_converged,
+        efficiency_budget_iterations: rubric.max_average_recovery_converged_iteration,
+        efficiency_verified,
+        memory_improved_after_recovery,
+        memory_improvement_score,
+        summary: if structural_adaptation_present && efficiency_verified {
+            format!(
+                "structural adaptation present; average trained recovery {} iterations within budget <= {}",
+                avg_recovery_converged, rubric.max_average_recovery_converged_iteration
+            )
+        } else if structural_adaptation_present {
+            format!(
+                "structural adaptation present; average trained recovery {} iterations exceeds budget <= {}",
+                avg_recovery_converged, rubric.max_average_recovery_converged_iteration
+            )
+        } else {
+            format!(
+                "structural adaptation not yet established; average trained recovery {} iterations against budget <= {}",
+                avg_recovery_converged, rubric.max_average_recovery_converged_iteration
+            )
+        },
+        memory_summary: format!(
+            "anchors_delta={} continuity_delta={} regions_delta={} stability_delta={} external_change_delta={} self_consistency_delta={} score={}/6",
+            avg_recovery_anchor_delta,
+            avg_recovery_continuity_delta,
+            avg_recovery_region_delta,
+            avg_recovery_stability_delta,
+            avg_recovery_external_change_delta,
+            avg_recovery_self_consistency_delta,
+            memory_improvement_score,
+        ),
+    };
+
     VerificationOutcome {
         passed: checks.iter().all(|c| c.passed),
         checks,
+        learning_assessment,
     }
 }
 
@@ -2252,6 +2355,22 @@ fn run_mode(
             check.detail
         );
     }
+    println!(
+        "learning assessment ({}) => structural_adaptation_present={} learning_curve_iterations={} efficiency_verified={} budget<={} :: {}",
+        mode.as_str(),
+        verification.learning_assessment.structural_adaptation_present,
+        verification.learning_assessment.learning_curve_iterations,
+        verification.learning_assessment.efficiency_verified,
+        verification.learning_assessment.efficiency_budget_iterations,
+        verification.learning_assessment.summary,
+    );
+    println!(
+        "memory assessment ({}) => memory_improved_after_recovery={} memory_improvement_score={} :: {}",
+        mode.as_str(),
+        verification.learning_assessment.memory_improved_after_recovery,
+        verification.learning_assessment.memory_improvement_score,
+        verification.learning_assessment.memory_summary,
+    );
 
     println!(
         "diagnostic baseline ({}) => stage_d_median={} derived_2x={} canonical_budget={}",
@@ -2561,9 +2680,15 @@ fn main() {
     println!();
 
     let all_passed = mode_runs.iter().all(|m| m.verification.passed) && sequence.all_gates_passed;
+    let structural_learning_present = mode_runs
+        .iter()
+        .all(|m| m.verification.learning_assessment.structural_adaptation_present);
     if all_passed {
         println!("LEARNING_VERIFIED");
     } else {
+        if structural_learning_present {
+            println!("LEARNING_PRESENT_EFFICIENCY_NOT_VERIFIED");
+        }
         println!("LEARNING_NOT_VERIFIED");
         std::process::exit(1);
     }
