@@ -33,6 +33,9 @@ pub mod geom {
         CoreInvariant, ClosureStatus, ClosureTransition, InvariantViolation,
         GeometricState, ConstraintEvaluator, ConstraintSystem,
     };
+    pub use space::{Coordinate3, GeometricSpace, Metric, Scalar};
+    pub use field::{FieldPoint, SemanticField};
+    pub use mode::{ResonanceMode, ResonanceTransform};
 }
 
 pub mod cognition {
@@ -41,10 +44,12 @@ pub mod cognition {
     pub mod evaluator;
     pub mod scheduler;
 
+    pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
+    pub use evaluator::ConstraintStatus;
     pub use evaluator::ConstraintEvalEngine;
-    pub use node::SemanticNode;
-    pub use scheduler::TaskScheduler;
+    pub use node::{CognitiveFrame, SemanticNode};
+    pub use scheduler::{ScheduledTask, TaskScheduler};
 }
 
 pub mod runtime {
@@ -61,6 +66,12 @@ pub use geom::{
     CoreInvariant, ClosureStatus, ClosureTransition, InvariantViolation,
     GeometricState, ConstraintEvaluator, ConstraintSystem,
 };
+pub use geom::{Coordinate3, FieldPoint, GeometricSpace, ResonanceMode, ResonanceTransform, SemanticField};
+pub use cognition::{
+    CognitiveFrame, ConstraintEvalEngine, ConstraintKind, ConstraintStatus, ScheduledTask,
+    SemanticConstraint, SemanticNode, TaskScheduler,
+};
+pub use runtime::{AuditLogger, DeterminismVerifier, DeterministicRuntime};
 
 #[cfg(test)]
 mod tests {
@@ -81,5 +92,15 @@ mod tests {
         assert!(Closed.is_final());
         assert!(Contradictory.is_final());
         assert!(!Partial.is_final());
+    }
+
+    #[test]
+    fn phase2_pipeline_smoke_test() {
+        let engine = ConstraintEvalEngine::new();
+        let constraints = vec![SemanticConstraint::assertion("light", "wave", true, 90)];
+        let nodes = engine.constraints_to_nodes(&constraints);
+        let mut field = engine.project_nodes_to_field(&nodes);
+        engine.apply_resonance_transform(&mut field, &nodes);
+        assert_eq!(field.concept_count(), 1);
     }
 }
