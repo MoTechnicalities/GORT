@@ -1619,6 +1619,210 @@ pub fn track_manifold_evolution(
     })
 }
 
+// ─── Phase 5.3: Cognitive Flow Fields ───────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConceptFlowVector {
+    pub concept: String,
+    /// Positive = moved toward a denser/larger region; negative = fragmented
+    pub region_flux: i64,
+    /// How many active anchors co-reside in the same region as this concept
+    pub anchor_pull: i64,
+    /// Net direction: positive = toward stability, negative = toward instability
+    pub net_direction: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegionFlowVector {
+    pub region_id: String,
+    pub cohesion_trend: i64,
+    pub size_trend: i64,
+    pub persistence_score: i64,
+    pub is_attractor: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlowPrediction {
+    pub predicted_stable_region_ids: Vec<String>,
+    pub predicted_transient_region_ids: Vec<String>,
+    pub convergent: bool,
+    pub momentum: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CognitiveFlowField {
+    pub concept_vectors: Vec<ConceptFlowVector>,
+    pub region_vectors: Vec<RegionFlowVector>,
+    pub prediction: FlowPrediction,
+    pub canonical_hash: String,
+}
+
+pub fn compute_cognitive_flow_field(
+    snapshots: &[CognitiveTopology],
+    anchor_basis_ids: &[String],
+) -> Result<CognitiveFlowField, InvariantViolation> {
+    if snapshots.is_empty() {
+        let prediction = FlowPrediction {
+            predicted_stable_region_ids: Vec::new(),
+            predicted_transient_region_ids: Vec::new(),
+            convergent: true,
+            momentum: 0,
+        };
+        let canonical_hash = hash_json(&(&Vec::<ConceptFlowVector>::new(), &prediction))?;
+        return Ok(CognitiveFlowField {
+            concept_vectors: Vec::new(),
+            region_vectors: Vec::new(),
+            prediction,
+            canonical_hash,
+        });
+    }
+
+    let anchor_set: BTreeSet<String> = anchor_basis_ids.iter().cloned().collect();
+
+    // Track region appearances and cohesion across snapshots
+    let mut region_first_size: BTreeMap<String, usize> = BTreeMap::new();
+    let mut region_last_size: BTreeMap<String, usize> = BTreeMap::new();
+    let mut region_first_cohesion: BTreeMap<String, i64> = BTreeMap::new();
+    let mut region_last_cohesion: BTreeMap<String, i64> = BTreeMap::new();
+    let mut region_appearances: BTreeMap<String, usize> = BTreeMap::new();
+
+    for snapshot in snapshots {
+        for region in &snapshot.regions {
+            let entry = region_appearances.entry(region.id.clone()).or_default();
+            if *entry == 0 {
+                region_first_size.insert(region.id.clone(), region.members.len());
+                region_first_cohesion.insert(region.id.clone(), region.cohesion_score);
+            }
+            *entry += 1;
+            region_last_size.insert(region.id.clone(), region.members.len());
+            region_last_cohesion.insert(region.id.clone(), region.cohesion_score);
+        }
+    }
+
+    let total_steps = snapshots.len();
+
+    // Build region flow vectors
+    let mut region_vectors: Vec<RegionFlowVector> = region_appearances
+        .iter()
+        .map(|(id, &count)| {
+            let first_sz = *region_first_size.get(id).unwrap_or(&0) as i64;
+            let last_sz = *region_last_size.get(id).unwrap_or(&0) as i64;
+            let first_coh = *region_first_cohesion.get(id).unwrap_or(&0);
+            let last_coh = *region_last_cohesion.get(id).unwrap_or(&0);
+
+            // Detect if any anchor lives in this region (by checking last snapshot)
+            let is_attractor = snapshots
+                .last()
+                .and_then(|s| s.regions.iter().find(|r| r.id == *id))
+                .map(|r| r.members.iter().any(|m| anchor_set.contains(m)))
+                .unwrap_or(false);
+
+            RegionFlowVector {
+                region_id: id.clone(),
+                cohesion_trend: last_coh - first_coh,
+                size_trend: last_sz - first_sz,
+                persistence_score: (count as i64 * 1000) / total_steps.max(1) as i64,
+                is_attractor,
+            }
+        })
+        .collect();
+    region_vectors.sort_by(|a, b| a.region_id.cmp(&b.region_id));
+
+    // Build concept flow vectors from last two snapshots
+    let mut concept_vectors: Vec<ConceptFlowVector> = Vec::new();
+    if snapshots.len() >= 2 {
+        let prev = &snapshots[snapshots.len() - 2];
+        let curr = &snapshots[snapshots.len() - 1];
+
+        // Map concept -> region size in each snapshot
+        let mut prev_concept_region_size: BTreeMap<String, usize> = BTreeMap::new();
+        for region in &prev.regions {
+            for member in &region.members {
+                prev_concept_region_size.insert(member.clone(), region.members.len());
+            }
+        }
+        let mut curr_concept_region_size: BTreeMap<String, usize> = BTreeMap::new();
+        let mut curr_concept_anchor_pull: BTreeMap<String, i64> = BTreeMap::new();
+        for region in &curr.regions {
+            let anchor_count = region.members.iter().filter(|m| anchor_set.contains(*m)).count() as i64;
+            for member in &region.members {
+                curr_concept_region_size.insert(member.clone(), region.members.len());
+                curr_concept_anchor_pull.insert(member.clone(), anchor_count);
+            }
+        }
+
+        let all_concepts: BTreeSet<String> = prev_concept_region_size
+            .keys()
+            .chain(curr_concept_region_size.keys())
+            .cloned()
+            .collect();
+
+        for concept in all_concepts {
+            let prev_sz = *prev_concept_region_size.get(&concept).unwrap_or(&0) as i64;
+            let curr_sz = *curr_concept_region_size.get(&concept).unwrap_or(&0) as i64;
+            let anchor_pull = *curr_concept_anchor_pull.get(&concept).unwrap_or(&0);
+            let region_flux = curr_sz - prev_sz;
+
+            let is_anchor = anchor_set.contains(&concept);
+            let net_direction = region_flux + anchor_pull * 10 + if is_anchor { 50 } else { 0 };
+
+            concept_vectors.push(ConceptFlowVector {
+                concept,
+                region_flux,
+                anchor_pull,
+                net_direction,
+            });
+        }
+        concept_vectors.sort_by(|a, b| a.concept.cmp(&b.concept));
+    }
+
+    // Flow-based prediction
+    let momentum: i64 = if snapshots.len() >= 2 {
+        let drift = compare_topologies(
+            &snapshots[snapshots.len() - 2],
+            &snapshots[snapshots.len() - 1],
+        );
+        drift.drift_score
+    } else {
+        0
+    };
+
+    let drift_trend_converging = if snapshots.len() >= 3 {
+        let d1 = compare_topologies(&snapshots[snapshots.len() - 3], &snapshots[snapshots.len() - 2]).drift_score;
+        let d2 = compare_topologies(&snapshots[snapshots.len() - 2], &snapshots[snapshots.len() - 1]).drift_score;
+        d2 <= d1
+    } else {
+        momentum == 0
+    };
+
+    let predicted_stable_region_ids: Vec<String> = region_vectors
+        .iter()
+        .filter(|r| r.persistence_score >= 750 && r.cohesion_trend >= 0)
+        .map(|r| r.region_id.clone())
+        .collect();
+    let predicted_transient_region_ids: Vec<String> = region_vectors
+        .iter()
+        .filter(|r| r.persistence_score < 750 || r.cohesion_trend < 0)
+        .map(|r| r.region_id.clone())
+        .collect();
+
+    let prediction = FlowPrediction {
+        predicted_stable_region_ids,
+        predicted_transient_region_ids,
+        convergent: drift_trend_converging,
+        momentum,
+    };
+
+    let canonical_hash = hash_json(&(&concept_vectors, &region_vectors, &prediction))?;
+
+    Ok(CognitiveFlowField {
+        concept_vectors,
+        region_vectors,
+        prediction,
+        canonical_hash,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

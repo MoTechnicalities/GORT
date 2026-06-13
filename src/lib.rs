@@ -53,12 +53,13 @@ pub mod cognition {
     pub use evaluator::ConstraintEvalEngine;
     pub use evaluator::SenseInterferenceScore;
     pub use multiframe::{
-        anchor_derived_relational_distance, compare_topologies, compute_cognitive_topology,
-        detect_phase_transition, track_manifold_evolution,
-        AnchorRegistry, AnchorRelationalDistance, CognitiveTopology, ConceptAnchor,
-        ConsolidatedMemory, EmergentConcept, FrameIterationResult, ManifoldDrift,
-        ManifoldEvolutionTrace, MultiFrameCognition, MultiFrameConfig, MultiFrameIteration,
-        MultiFrameReport, StabilizationMetrics, StableSense, TopologicalNeighborhood,
+        anchor_derived_relational_distance, compare_topologies, compute_cognitive_flow_field,
+        compute_cognitive_topology, detect_phase_transition, track_manifold_evolution,
+        AnchorRegistry, AnchorRelationalDistance, CognitiveFlowField, CognitiveTopology,
+        ConceptAnchor, ConceptFlowVector, ConsolidatedMemory, EmergentConcept,
+        FlowPrediction, FrameIterationResult, ManifoldDrift, ManifoldEvolutionTrace,
+        MultiFrameCognition, MultiFrameConfig, MultiFrameIteration, MultiFrameReport,
+        RegionFlowVector, StabilizationMetrics, StableSense, TopologicalNeighborhood,
         TopologicalRegion, TopologyEvolutionStep, TopologyMetrics,
     };
     pub use node::{CognitiveFrame, SemanticNode};
@@ -86,17 +87,22 @@ pub use geom::{
 pub use cognition::{
     anchor_derived_relational_distance,
     compare_topologies,
+    compute_cognitive_flow_field,
     compute_cognitive_topology,
     detect_phase_transition,
     track_manifold_evolution,
     AnchorRegistry,
     AnchorRelationalDistance,
+    CognitiveFlowField,
     CognitiveTopology,
     ConceptAnchor,
+    ConceptFlowVector,
     ConsolidatedMemory,
     EmergentConcept,
+    FlowPrediction,
     ManifoldDrift,
     ManifoldEvolutionTrace,
+    RegionFlowVector,
     TopologicalNeighborhood,
     TopologicalRegion,
     TopologyEvolutionStep,

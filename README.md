@@ -214,6 +214,12 @@ Phase 5.2 cognitive manifold dynamics demo:
 cargo run --example phase52_manifold_dynamics
 ```
 
+Phase 5.3 cognitive flow fields demo:
+
+```bash
+cargo run --example phase53_flow_fields
+```
+
 ### Run Tests
 
 ```bash
@@ -400,10 +406,27 @@ These gates are asserted in `tests/phase51_topology.rs` and run in CI.
 
 These gates are asserted in `tests/phase52_manifold_dynamics.rs` and run in CI.
 
-### Phase 5.3: Emergent Cognitive Geometry (Planned)
-- Promote stable topological structures into explicit geometric coordinate systems
-- Learn geometry from anchor-preserving developmental interaction traces
-- Establish endogenous distance, topology, and transformation semantics from replay-stable histories
+### Phase 5.3: Cognitive Flow Fields (In Progress)
+✅ Concept flow vectors — directional drift per concept across topology snapshots
+✅ Region flow vectors — cohesion trend, size trend, persistence score, attractor flag
+✅ Anchor-pull field — attractor influence measured from co-resident anchor count
+✅ Flow-based stability prediction — convergent/divergent classification from drift trend
+✅ Cognitive momentum — scalar magnitude of last-step manifold drift
+- Trajectory extrapolation for predicted next topology state
+- Multi-step flow budgeting for anticipatory reasoning
+
+### Phase 5.3 Acceptance Gates (Enforced in Tests/CI)
+- Gate AA: Anchor concepts receive positive anchor-pull in flow vectors
+- Gate AB: Perturbation produces non-zero momentum; stable replay produces zero momentum
+- Gate AC: Flow field canonical hash is invariant across worker counts
+- Gate AD: Concept flux is non-zero when topology changes between snapshots
+
+These gates are asserted in `tests/phase53_flow_fields.rs` and run in CI.
+
+### Phase 5.4: Predictive Cognitive Dynamics (Planned)
+- Trajectory extrapolation from flow vectors to predict next topology
+- Long-horizon cognitive forecasting with drift budgeting
+- Phase 6 bridge: anticipatory reasoning and goal-directed state evolution
 
 ## Integration with UGC-Model
 

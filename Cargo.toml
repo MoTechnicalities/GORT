@@ -62,3 +62,7 @@ path = "examples/phase51_topology.rs"
 [[example]]
 name = "phase52_manifold_dynamics"
 path = "examples/phase52_manifold_dynamics.rs"
+
+[[example]]
+name = "phase53_flow_fields"
+path = "examples/phase53_flow_fields.rs"
