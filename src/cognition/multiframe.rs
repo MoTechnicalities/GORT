@@ -2025,6 +2025,246 @@ pub fn compute_energy_minimizing_trajectory(
     })
 }
 
+// ─── Phase 5.5: Cognitive Intent & Goal Formation ───────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoalAttractor {
+    pub region_id: String,
+    pub goal_weight: i64,
+    pub preferred_energy_ceiling: i64,
+    pub persistence_preference: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntentField {
+    pub goal_attractors: Vec<GoalAttractor>,
+    pub preferred_regions: Vec<String>,
+    pub avoidance_regions: Vec<String>,
+    pub canonical_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PreferenceGradient {
+    pub source_region: String,
+    pub target_region: String,
+    pub energy_gradient: i64,
+    pub goal_pull: i64,
+    pub traversal_cost: i64,
+    pub preference_score: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoalStabilityMetric {
+    pub goal_alignment: i64,
+    pub trajectory_efficiency: i64,
+    pub stability_projection: i64,
+    pub intent_confidence: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntentDrivenTrajectory {
+    pub selected_path: Vec<String>,
+    pub avoided_regions: Vec<String>,
+    pub projected_energy: i64,
+    pub goal_stability: GoalStabilityMetric,
+    pub canonical_hash: String,
+}
+
+pub fn compute_intent_field(
+    potential_field: &CognitivePotentialField,
+    anchor_basis_ids: &[String],
+) -> Result<IntentField, InvariantViolation> {
+    if potential_field.stability_energies.is_empty() {
+        return Ok(IntentField {
+            goal_attractors: Vec::new(),
+            preferred_regions: Vec::new(),
+            avoidance_regions: Vec::new(),
+            canonical_hash: hash_json(&(Vec::<GoalAttractor>::new(), Vec::<String>::new()))?,
+        });
+    }
+
+    let min_energy = potential_field.global_minimum_energy;
+    let preferred_energy_ceiling = min_energy + 150;
+
+    let anchor_strength = (anchor_basis_ids.len() as i64).max(1) * 10;
+    let mut goal_attractors: Vec<GoalAttractor> = potential_field
+        .stability_energies
+        .iter()
+        .filter(|e| e.well_depth > 0 && e.potential <= preferred_energy_ceiling)
+        .map(|e| GoalAttractor {
+            region_id: e.region_id.clone(),
+            goal_weight: e.attraction_strength + anchor_strength,
+            preferred_energy_ceiling,
+            persistence_preference: (e.well_depth / 2).max(100),
+        })
+        .collect();
+    goal_attractors.sort_by(|a, b| a.region_id.cmp(&b.region_id));
+
+    let preferred_set: BTreeSet<String> = goal_attractors
+        .iter()
+        .map(|g| g.region_id.clone())
+        .collect();
+    let mut preferred_regions: Vec<String> = preferred_set.iter().cloned().collect();
+    preferred_regions.sort();
+
+    let mut avoidance_regions: Vec<String> = potential_field
+        .stability_energies
+        .iter()
+        .filter(|e| e.potential >= min_energy + 400 || e.well_depth < 0)
+        .map(|e| e.region_id.clone())
+        .filter(|r| !preferred_set.contains(r))
+        .collect();
+    avoidance_regions.sort();
+    avoidance_regions.dedup();
+
+    let canonical_hash = hash_json(&(
+        &goal_attractors,
+        &preferred_regions,
+        &avoidance_regions,
+        &anchor_basis_ids,
+    ))?;
+
+    Ok(IntentField {
+        goal_attractors,
+        preferred_regions,
+        avoidance_regions,
+        canonical_hash,
+    })
+}
+
+pub fn compute_preference_gradients(
+    potential_field: &CognitivePotentialField,
+    intent_field: &IntentField,
+) -> Result<Vec<PreferenceGradient>, InvariantViolation> {
+    let preferred: BTreeSet<String> = intent_field.preferred_regions.iter().cloned().collect();
+    let avoidance: BTreeSet<String> = intent_field.avoidance_regions.iter().cloned().collect();
+
+    let mut gradients: Vec<PreferenceGradient> = potential_field
+        .gradients
+        .iter()
+        .map(|g| {
+            let mut goal_pull: i64 = 0;
+            if preferred.contains(&g.target_region) {
+                goal_pull += 250;
+            }
+            if avoidance.contains(&g.target_region) {
+                goal_pull -= 300;
+            }
+            let preference_score = g.gradient + goal_pull;
+            PreferenceGradient {
+                source_region: g.source_region.clone(),
+                target_region: g.target_region.clone(),
+                energy_gradient: g.gradient,
+                goal_pull,
+                traversal_cost: g.traversal_cost,
+                preference_score,
+            }
+        })
+        .collect();
+
+    gradients.sort_by(|a, b| {
+        b.preference_score
+            .cmp(&a.preference_score)
+            .then_with(|| a.source_region.cmp(&b.source_region))
+            .then_with(|| a.target_region.cmp(&b.target_region))
+    });
+
+    Ok(gradients)
+}
+
+pub fn select_goal_directed_trajectory(
+    potential_field: &CognitivePotentialField,
+    intent_field: &IntentField,
+    current_region: &str,
+) -> Result<IntentDrivenTrajectory, InvariantViolation> {
+    let pref_gradients = compute_preference_gradients(potential_field, intent_field)?;
+    let avoidance: BTreeSet<String> = intent_field.avoidance_regions.iter().cloned().collect();
+    let preferred: BTreeSet<String> = intent_field.preferred_regions.iter().cloned().collect();
+
+    let mut candidates: Vec<&PreferenceGradient> = pref_gradients
+        .iter()
+        .filter(|g| g.source_region == current_region && g.preference_score > 0)
+        .collect();
+
+    if !candidates.iter().any(|g| !avoidance.contains(&g.target_region)) {
+        candidates.clear();
+    } else {
+        candidates.retain(|g| !avoidance.contains(&g.target_region));
+    }
+
+    let potential_by_region: BTreeMap<String, i64> = potential_field
+        .stability_energies
+        .iter()
+        .map(|e| (e.region_id.clone(), e.potential))
+        .collect();
+
+    let (selected_path, projected_energy, goal_alignment, trajectory_efficiency, stability_projection) =
+        if let Some(best) = candidates
+            .into_iter()
+            .max_by_key(|g| (g.preference_score * 1000) / (g.traversal_cost + 1))
+        {
+            let target_energy = *potential_by_region.get(&best.target_region).unwrap_or(&500);
+            let source_energy = *potential_by_region.get(&best.source_region).unwrap_or(&500);
+            let goal_alignment = if preferred.contains(&best.target_region) {
+                1000
+            } else {
+                500
+            };
+            let trajectory_efficiency =
+                ((best.preference_score * 1000) / (best.traversal_cost + 1)).clamp(0, 1000);
+            let cognitive_burden = source_energy + (intent_field.avoidance_regions.len() as i64 * 200);
+            let stability_projection =
+                (1000 - target_energy - (cognitive_burden / 2) + best.goal_pull).clamp(0, 1000);
+
+            (
+                vec![current_region.to_string(), best.target_region.clone()],
+                target_energy,
+                goal_alignment,
+                trajectory_efficiency,
+                stability_projection,
+            )
+        } else {
+            let current_energy = *potential_by_region.get(current_region).unwrap_or(&500);
+            let cognitive_burden = current_energy + (intent_field.avoidance_regions.len() as i64 * 200);
+            (
+                vec![current_region.to_string()],
+                current_energy,
+                if preferred.contains(current_region) { 950 } else { 500 },
+                1000,
+                if preferred.contains(current_region) {
+                    (900 - (cognitive_burden / 3)).clamp(0, 1000)
+                } else {
+                    (500 - (cognitive_burden / 3)).clamp(0, 1000)
+                },
+            )
+        };
+
+    let intent_confidence =
+        ((goal_alignment + trajectory_efficiency + stability_projection) / 3).clamp(0, 1000);
+
+    let goal_stability = GoalStabilityMetric {
+        goal_alignment,
+        trajectory_efficiency,
+        stability_projection,
+        intent_confidence,
+    };
+
+    let canonical_hash = hash_json(&(
+        &selected_path,
+        &intent_field.canonical_hash,
+        &projected_energy,
+        &goal_stability,
+    ))?;
+
+    Ok(IntentDrivenTrajectory {
+        selected_path,
+        avoided_regions: intent_field.avoidance_regions.clone(),
+        projected_energy,
+        goal_stability,
+        canonical_hash,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

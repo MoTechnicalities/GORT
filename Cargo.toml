@@ -70,3 +70,7 @@ path = "examples/phase53_flow_fields.rs"
 [[example]]
 name = "phase54_energy_action"
 path = "examples/phase54_energy_action.rs"
+
+[[example]]
+name = "phase55_intent_goal"
+path = "examples/phase55_intent_goal.rs"

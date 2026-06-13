@@ -218,12 +218,18 @@ Phase 5.3 cognitive flow fields demo:
 
 ```bash
 cargo run --example phase53_flow_fields
+```
 
 Phase 5.4 cognitive energy & action selection demo:
 
 ```bash
 cargo run --example phase54_energy_action
 ```
+
+Phase 5.5 cognitive intent & goal formation demo:
+
+```bash
+cargo run --example phase55_intent_goal
 ```
 
 ### Run Tests
@@ -446,10 +452,27 @@ These gates are asserted in `tests/phase53_flow_fields.rs` and run in CI.
 
 These gates are asserted in `tests/phase54_energy_action.rs` and run in CI.
 
-### Phase 5.5: Predictive Cognitive Dynamics (Planned)
-- Trajectory extrapolation from energy fields to predict next topology
-- Long-horizon cognitive forecasting with drift and energy budgeting
-- Phase 6 bridge: anticipatory reasoning and goal-directed state evolution
+### Phase 5.5: Cognitive Intent & Goal Formation (In Progress)
+✅ Intent field formation — internal goal attractors derived from stable low-energy wells
+✅ Goal attractor weighting — preference strength from persistence and anchor support
+✅ Preference gradients — goal pull overlaid on energy gradients for intentional routing
+✅ Intent-driven trajectory selection — choose paths toward preferred regions while avoiding unstable regions
+✅ Goal stability metrics — alignment, efficiency, projected stability, and intent confidence
+- Multi-goal arbitration across competing preference fields
+
+### Phase 5.5 Acceptance Gates (Enforced in Tests/CI)
+- Gate AJ: Intent field forms at least one goal attractor in stable topology
+- Gate AK: Preference gradients apply positive goal pull toward preferred regions
+- Gate AL: Goal-directed trajectory moves toward preferred/non-avoided regions
+- Gate AM: External perturbation increases projected difficulty and reduces goal stability
+- Gate AN: Intent-driven trajectory canonical hash is invariant across worker counts
+
+These gates are asserted in `tests/phase55_intent_goal.rs` and run in CI.
+
+### Phase 5.6: Predictive Cognitive Dynamics (Planned)
+- Trajectory extrapolation from intent-shaped energy fields to predict next topology
+- Long-horizon cognitive forecasting with drift, energy, and intent budgeting
+- Phase 6 bridge: anticipatory reasoning and intentional cognitive dynamics
 
 ## Integration with UGC-Model
 
