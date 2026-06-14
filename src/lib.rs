@@ -45,6 +45,7 @@ pub mod cognition {
     pub mod scheduler;
     pub mod multiframe;
     pub mod phase61_structural_recovery;
+    pub mod phase62_structural_experiment;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -80,6 +81,10 @@ pub mod cognition {
     pub use phase61_structural_recovery::{
         Phase61RuntimePolicy, Phase61SignalSnapshot, Phase61StructuralRecoveryConfig,
         Phase61StructuralRecoveryState,
+    };
+    pub use phase62_structural_experiment::{
+        apply_phase62_structural_experiment, Phase62ExperimentKind, Phase62StructuralConfig,
+        Phase62StructuralReport,
     };
 }
 
@@ -143,6 +148,10 @@ pub use cognition::{
     Phase61SignalSnapshot,
     Phase61StructuralRecoveryConfig,
     Phase61StructuralRecoveryState,
+    Phase62ExperimentKind,
+    Phase62StructuralConfig,
+    Phase62StructuralReport,
+    apply_phase62_structural_experiment,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,

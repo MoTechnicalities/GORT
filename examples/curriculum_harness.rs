@@ -5,6 +5,7 @@ use rugc::{
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::env;
 use std::fs;
 use std::path::PathBuf;
 
@@ -234,6 +235,89 @@ struct FullStackQualitySnapshot {
     recovery_continuity: i64,
     recovery_regions: usize,
     recovery_anchors: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Phase62EpisodeToggle {
+    enabled: bool,
+    max_bridge_constraints: usize,
+    bridge_weight: u8,
+}
+
+impl Phase62EpisodeToggle {
+    fn disabled() -> Self {
+        Self {
+            enabled: false,
+            max_bridge_constraints: 0,
+            bridge_weight: 0,
+        }
+    }
+
+    fn enabled(max_bridge_constraints: usize, bridge_weight: u8) -> Self {
+        Self {
+            enabled: true,
+            max_bridge_constraints: max_bridge_constraints.max(1),
+            bridge_weight: bridge_weight.max(1),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Phase62EnvScope {
+    prev_enable: Option<String>,
+    prev_target: Option<String>,
+    prev_max_bridge: Option<String>,
+    prev_bridge_weight: Option<String>,
+}
+
+impl Drop for Phase62EnvScope {
+    fn drop(&mut self) {
+        restore_env_var("RUGC_PHASE62_ENABLE", self.prev_enable.take());
+        restore_env_var("RUGC_PHASE62_TARGET_NOVELTY", self.prev_target.take());
+        restore_env_var("RUGC_PHASE62_MAX_BRIDGE", self.prev_max_bridge.take());
+        restore_env_var("RUGC_PHASE62_BRIDGE_WEIGHT", self.prev_bridge_weight.take());
+    }
+}
+
+fn restore_env_var(name: &str, value: Option<String>) {
+    match value {
+        Some(v) => env::set_var(name, v),
+        None => env::remove_var(name),
+    }
+}
+
+fn phase62_toggle_for_episode(spec: &EpisodeSpec) -> Phase62EpisodeToggle {
+    match spec.id {
+        // Phase 6.2 initial curriculum-declared structural probe: hardest holdout path only.
+        "holdout_05" | "holdout_05_recovery" => Phase62EpisodeToggle::enabled(2, 6),
+        _ => Phase62EpisodeToggle::disabled(),
+    }
+}
+
+fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeToggle) -> Phase62EnvScope {
+    let scope = Phase62EnvScope {
+        prev_enable: env::var("RUGC_PHASE62_ENABLE").ok(),
+        prev_target: env::var("RUGC_PHASE62_TARGET_NOVELTY").ok(),
+        prev_max_bridge: env::var("RUGC_PHASE62_MAX_BRIDGE").ok(),
+        prev_bridge_weight: env::var("RUGC_PHASE62_BRIDGE_WEIGHT").ok(),
+    };
+
+    if toggle.enabled {
+        env::set_var("RUGC_PHASE62_ENABLE", "1");
+        env::set_var("RUGC_PHASE62_TARGET_NOVELTY", spec.novelty_tag);
+        env::set_var(
+            "RUGC_PHASE62_MAX_BRIDGE",
+            toggle.max_bridge_constraints.to_string(),
+        );
+        env::set_var("RUGC_PHASE62_BRIDGE_WEIGHT", toggle.bridge_weight.to_string());
+    } else {
+        env::set_var("RUGC_PHASE62_ENABLE", "0");
+        env::remove_var("RUGC_PHASE62_TARGET_NOVELTY");
+        env::remove_var("RUGC_PHASE62_MAX_BRIDGE");
+        env::remove_var("RUGC_PHASE62_BRIDGE_WEIGHT");
+    }
+
+    scope
 }
 
 fn cfg() -> MultiFrameConfig {
@@ -1506,6 +1590,18 @@ fn run_episode(
     mode: RunMode,
     config: &MultiFrameConfig,
 ) -> EpisodeMetrics {
+    let phase62_toggle = phase62_toggle_for_episode(spec);
+    let _phase62_scope = configure_phase62_env_for_episode(spec, phase62_toggle);
+
+    println!(
+        "  phase62_toggle episode_id={} novelty={} enabled={} max_bridge={} bridge_weight={}",
+        spec.id,
+        spec.novelty_tag,
+        phase62_toggle.enabled,
+        phase62_toggle.max_bridge_constraints,
+        phase62_toggle.bridge_weight,
+    );
+
     register_episode(mfc, spec);
     let report = mfc
         .run(config.clone())

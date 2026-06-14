@@ -4,6 +4,9 @@ use crate::cognition::node::CognitiveFrame;
 use crate::cognition::phase61_structural_recovery::{
     Phase61SignalSnapshot, Phase61StructuralRecoveryConfig, Phase61StructuralRecoveryState,
 };
+use crate::cognition::phase62_structural_experiment::{
+    apply_phase62_structural_experiment, Phase62StructuralConfig,
+};
 use crate::cognition::scheduler::TaskScheduler;
 use crate::geom::field::{ConceptCluster, SemanticField};
 use crate::geom::invariants::InvariantViolation;
@@ -12,6 +15,7 @@ use crate::runtime::logging::AuditLogger;
 use crate::GeometricState;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::env;
 use std::collections::{BTreeMap, BTreeSet};
 
 type ConstraintKey = (String, String, Option<String>);
@@ -331,9 +335,22 @@ impl MultiFrameCognition {
             let mut fields_by_frame = BTreeMap::new();
 
             for (topic, constraints) in &self.frames {
+                let phase62_config = phase62_config_for_frame(constraints);
+                let (phase62_constraints, phase62_report) =
+                    apply_phase62_structural_experiment(constraints, phase62_config);
+                if phase62_report.applied {
+                    self.logger.record(format!(
+                        "mfc:iter:{}:frame:{}:phase62:generated={} note={}",
+                        iter,
+                        topic,
+                        phase62_report.generated_constraints,
+                        phase62_report.note
+                    ));
+                }
+
                 let mut eval_audit = Vec::new();
                 let (resolved_constraints, summary) = self.engine.resolve_contradictions_parallel_deterministic(
-                    constraints,
+                    &phase62_constraints,
                     &self.scheduler,
                     workers,
                     &mut eval_audit,
@@ -1256,6 +1273,58 @@ fn perturbation_returns_anchor(
         Ok(h) => h == baseline_hash,
         Err(_) => false,
     }
+}
+
+fn phase62_env_flag(name: &str) -> bool {
+    env::var(name)
+        .ok()
+        .map(|v| {
+            let normalized = v.trim().to_ascii_lowercase();
+            normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on"
+        })
+        .unwrap_or(false)
+}
+
+fn phase62_env_usize(name: &str) -> Option<usize> {
+    env::var(name).ok().and_then(|v| v.trim().parse::<usize>().ok())
+}
+
+fn phase62_env_u8(name: &str) -> Option<u8> {
+    env::var(name).ok().and_then(|v| v.trim().parse::<u8>().ok())
+}
+
+fn frame_matches_phase62_target_novelty(constraints: &[SemanticConstraint], target: &str) -> bool {
+    constraints
+        .iter()
+        .any(|c| c.subject == "novelty" && c.predicate == target)
+}
+
+fn phase62_config_for_frame(constraints: &[SemanticConstraint]) -> Phase62StructuralConfig {
+    let mut config = Phase62StructuralConfig::default();
+
+    if !phase62_env_flag("RUGC_PHASE62_ENABLE") {
+        return config;
+    }
+
+    if let Some(target) = env::var("RUGC_PHASE62_TARGET_NOVELTY")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        if !frame_matches_phase62_target_novelty(constraints, &target) {
+            return config;
+        }
+    }
+
+    if let Some(max_bridge) = phase62_env_usize("RUGC_PHASE62_MAX_BRIDGE") {
+        config.max_bridge_constraints_per_subject = max_bridge.max(1);
+    }
+    if let Some(weight) = phase62_env_u8("RUGC_PHASE62_BRIDGE_WEIGHT") {
+        config.bridge_weight = weight.max(1);
+    }
+
+    config.enabled = true;
+    config
 }
 
 fn count_cross_frame_conflicts(by_frame: &BTreeMap<String, Vec<SemanticConstraint>>) -> usize {
