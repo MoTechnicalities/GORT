@@ -96,6 +96,16 @@ struct EpisodeMetrics {
     arbitration_confidence: i64,
     self_consistency: i64,
     meta_revision_count: usize,
+    phase62_v3b_branch: Option<String>,
+    phase63_plan: Option<String>,
+    phase63_telemetry: Option<String>,
+    phase63_diagnostic: Option<String>,
+    phase63_regime: Option<String>,
+    phase63_canonical_plan: Option<String>,
+    phase63_canonical_regime: Option<String>,
+    phase63_canonical_target: Option<String>,
+    phase66_telemetry: Option<String>,
+    phase67_telemetry: Option<String>,
     final_trace_hash: String,
 }
 
@@ -229,6 +239,54 @@ struct Phase6TuningSequence {
     all_gates_passed: bool,
 }
 
+fn telemetry_i32_field(telemetry: &str, field: &str) -> Option<i32> {
+    let marker = format!("{}=", field);
+    telemetry
+        .split(&marker)
+        .nth(1)
+        .and_then(|rest| rest.split(' ').next())
+        .and_then(|value| value.parse::<i32>().ok())
+}
+
+fn telemetry_bool_field(telemetry: &str, field: &str) -> Option<bool> {
+    let marker = format!("{}=", field);
+    telemetry
+        .split(&marker)
+        .nth(1)
+        .and_then(|rest| rest.split(' ').next())
+        .and_then(|value| match value {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        })
+}
+
+fn phase63_plan_operators(plan_line: &str) -> String {
+    let Some(targets) = plan_line
+        .split(" targets=")
+        .nth(1)
+        .and_then(|rest| rest.split(' ').next())
+    else {
+        return "none".to_string();
+    };
+
+    if targets == "none" {
+        return "none".to_string();
+    }
+
+    let operators: Vec<String> = targets
+        .split('|')
+        .filter_map(|target| target.split(':').nth(2))
+        .map(|op| op.to_string())
+        .collect();
+
+    if operators.is_empty() {
+        "none".to_string()
+    } else {
+        operators.join(",")
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct FullStackQualitySnapshot {
     recovery_iteration: usize,
@@ -268,6 +326,25 @@ struct Phase62EnvScope {
     prev_target: Option<String>,
     prev_max_bridge: Option<String>,
     prev_bridge_weight: Option<String>,
+    prev_runtime_continuity_before: Option<String>,
+    prev_runtime_continuity_after_pre: Option<String>,
+    prev_runtime_regions_before: Option<String>,
+    prev_runtime_regions_after_pre: Option<String>,
+    prev_runtime_anchors_before: Option<String>,
+    prev_runtime_anchors_after_pre: Option<String>,
+    prev_runtime_external_before: Option<String>,
+    prev_runtime_external_after_pre: Option<String>,
+    prev_runtime_support_signal: Option<String>,
+    prev_runtime_contradiction_signal: Option<String>,
+    prev_runtime_v3b_branch: Option<String>,
+    prev_runtime_phase63_plan: Option<String>,
+    prev_runtime_phase63_telemetry: Option<String>,
+    prev_runtime_phase63_regime: Option<String>,
+    prev_runtime_phase63_canonical_plan: Option<String>,
+    prev_runtime_phase63_canonical_regime: Option<String>,
+    prev_runtime_phase63_canonical_target: Option<String>,
+    prev_runtime_phase66_telemetry: Option<String>,
+    prev_runtime_phase67_telemetry: Option<String>,
 }
 
 impl Drop for Phase62EnvScope {
@@ -276,6 +353,82 @@ impl Drop for Phase62EnvScope {
         restore_env_var("RUGC_PHASE62_TARGET_NOVELTY", self.prev_target.take());
         restore_env_var("RUGC_PHASE62_MAX_BRIDGE", self.prev_max_bridge.take());
         restore_env_var("RUGC_PHASE62_BRIDGE_WEIGHT", self.prev_bridge_weight.take());
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_CONTINUITY_BEFORE",
+            self.prev_runtime_continuity_before.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE",
+            self.prev_runtime_continuity_after_pre.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_REGIONS_BEFORE",
+            self.prev_runtime_regions_before.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_REGIONS_AFTER_PRE",
+            self.prev_runtime_regions_after_pre.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_ANCHORS_BEFORE",
+            self.prev_runtime_anchors_before.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_ANCHORS_AFTER_PRE",
+            self.prev_runtime_anchors_after_pre.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_EXTERNAL_BEFORE",
+            self.prev_runtime_external_before.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE",
+            self.prev_runtime_external_after_pre.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_SUPPORT_SIGNAL",
+            self.prev_runtime_support_signal.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_RUNTIME_CONTRADICTION_SIGNAL",
+            self.prev_runtime_contradiction_signal.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE62_V3B_BRANCH",
+            self.prev_runtime_v3b_branch.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE63_PLAN",
+            self.prev_runtime_phase63_plan.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE63_TELEMETRY",
+            self.prev_runtime_phase63_telemetry.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE63_REGIME",
+            self.prev_runtime_phase63_regime.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE63_CANONICAL_PLAN",
+            self.prev_runtime_phase63_canonical_plan.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE63_CANONICAL_REGIME",
+            self.prev_runtime_phase63_canonical_regime.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE63_CANONICAL_TARGET",
+            self.prev_runtime_phase63_canonical_target.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE66_TELEMETRY",
+            self.prev_runtime_phase66_telemetry.take(),
+        );
+        restore_env_var(
+            "RUGC_PHASE67_TELEMETRY",
+            self.prev_runtime_phase67_telemetry.take(),
+        );
     }
 }
 
@@ -288,8 +441,8 @@ fn restore_env_var(name: &str, value: Option<String>) {
 
 fn phase62_toggle_for_episode(spec: &EpisodeSpec) -> Phase62EpisodeToggle {
     match spec.id {
-        // Phase 6.2 initial curriculum-declared structural probe: hardest holdout path only.
-        "holdout_05" | "holdout_05_recovery" => Phase62EpisodeToggle::enabled(2, 6),
+        // Phase 6.2 AnchorClosureSpineV1: hard-holdout structural battery only.
+        id if id.starts_with("holdout_") => Phase62EpisodeToggle::enabled(2, 6),
         _ => Phase62EpisodeToggle::disabled(),
     }
 }
@@ -300,6 +453,25 @@ fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeT
         prev_target: env::var("RUGC_PHASE62_TARGET_NOVELTY").ok(),
         prev_max_bridge: env::var("RUGC_PHASE62_MAX_BRIDGE").ok(),
         prev_bridge_weight: env::var("RUGC_PHASE62_BRIDGE_WEIGHT").ok(),
+        prev_runtime_continuity_before: env::var("RUGC_PHASE62_RUNTIME_CONTINUITY_BEFORE").ok(),
+        prev_runtime_continuity_after_pre: env::var("RUGC_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE").ok(),
+        prev_runtime_regions_before: env::var("RUGC_PHASE62_RUNTIME_REGIONS_BEFORE").ok(),
+        prev_runtime_regions_after_pre: env::var("RUGC_PHASE62_RUNTIME_REGIONS_AFTER_PRE").ok(),
+        prev_runtime_anchors_before: env::var("RUGC_PHASE62_RUNTIME_ANCHORS_BEFORE").ok(),
+        prev_runtime_anchors_after_pre: env::var("RUGC_PHASE62_RUNTIME_ANCHORS_AFTER_PRE").ok(),
+        prev_runtime_external_before: env::var("RUGC_PHASE62_RUNTIME_EXTERNAL_BEFORE").ok(),
+        prev_runtime_external_after_pre: env::var("RUGC_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE").ok(),
+        prev_runtime_support_signal: env::var("RUGC_PHASE62_RUNTIME_SUPPORT_SIGNAL").ok(),
+        prev_runtime_contradiction_signal: env::var("RUGC_PHASE62_RUNTIME_CONTRADICTION_SIGNAL").ok(),
+        prev_runtime_v3b_branch: env::var("RUGC_PHASE62_V3B_BRANCH").ok(),
+        prev_runtime_phase63_plan: env::var("RUGC_PHASE63_PLAN").ok(),
+        prev_runtime_phase63_telemetry: env::var("RUGC_PHASE63_TELEMETRY").ok(),
+        prev_runtime_phase63_regime: env::var("RUGC_PHASE63_REGIME").ok(),
+        prev_runtime_phase63_canonical_plan: env::var("RUGC_PHASE63_CANONICAL_PLAN").ok(),
+        prev_runtime_phase63_canonical_regime: env::var("RUGC_PHASE63_CANONICAL_REGIME").ok(),
+        prev_runtime_phase63_canonical_target: env::var("RUGC_PHASE63_CANONICAL_TARGET").ok(),
+        prev_runtime_phase66_telemetry: env::var("RUGC_PHASE66_TELEMETRY").ok(),
+        prev_runtime_phase67_telemetry: env::var("RUGC_PHASE67_TELEMETRY").ok(),
     };
 
     if toggle.enabled {
@@ -310,14 +482,79 @@ fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeT
             toggle.max_bridge_constraints.to_string(),
         );
         env::set_var("RUGC_PHASE62_BRIDGE_WEIGHT", toggle.bridge_weight.to_string());
+        env::remove_var("RUGC_PHASE62_V3B_BRANCH");
+        env::remove_var("RUGC_PHASE63_PLAN");
+        env::remove_var("RUGC_PHASE63_TELEMETRY");
+        env::remove_var("RUGC_PHASE63_REGIME");
+        env::remove_var("RUGC_PHASE63_CANONICAL_PLAN");
+        env::remove_var("RUGC_PHASE63_CANONICAL_REGIME");
+        env::remove_var("RUGC_PHASE63_CANONICAL_TARGET");
+        env::remove_var("RUGC_PHASE66_TELEMETRY");
+        env::remove_var("RUGC_PHASE67_TELEMETRY");
     } else {
         env::set_var("RUGC_PHASE62_ENABLE", "0");
         env::remove_var("RUGC_PHASE62_TARGET_NOVELTY");
         env::remove_var("RUGC_PHASE62_MAX_BRIDGE");
         env::remove_var("RUGC_PHASE62_BRIDGE_WEIGHT");
+        env::remove_var("RUGC_PHASE62_V3B_BRANCH");
+        env::remove_var("RUGC_PHASE63_PLAN");
+        env::remove_var("RUGC_PHASE63_TELEMETRY");
+        env::remove_var("RUGC_PHASE63_REGIME");
+        env::remove_var("RUGC_PHASE63_CANONICAL_PLAN");
+        env::remove_var("RUGC_PHASE63_CANONICAL_REGIME");
+        env::remove_var("RUGC_PHASE63_CANONICAL_TARGET");
+        env::remove_var("RUGC_PHASE66_TELEMETRY");
+        env::remove_var("RUGC_PHASE67_TELEMETRY");
     }
 
     scope
+}
+
+fn set_phase62_runtime_summary(
+    holdout_spec: &EpisodeSpec,
+    trained_holdout: &EpisodeMetrics,
+    trained_recovery_pre: &EpisodeMetrics,
+) {
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_CONTINUITY_BEFORE",
+        trained_holdout.self_continuity_score.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE",
+        trained_recovery_pre.self_continuity_score.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_REGIONS_BEFORE",
+        trained_holdout.topology_regions.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_REGIONS_AFTER_PRE",
+        trained_recovery_pre.topology_regions.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_ANCHORS_BEFORE",
+        trained_holdout.active_anchors.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_ANCHORS_AFTER_PRE",
+        trained_recovery_pre.active_anchors.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_EXTERNAL_BEFORE",
+        trained_holdout.external_change_score.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE",
+        trained_recovery_pre.external_change_score.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_SUPPORT_SIGNAL",
+        holdout_spec.support_strength.to_string(),
+    );
+    env::set_var(
+        "RUGC_PHASE62_RUNTIME_CONTRADICTION_SIGNAL",
+        holdout_spec.contradiction_strength.to_string(),
+    );
 }
 
 fn cfg() -> MultiFrameConfig {
@@ -1664,6 +1901,36 @@ fn run_episode(
         arbitration_confidence: arbitrated.arbitration_confidence,
         self_consistency,
         meta_revision_count,
+        phase62_v3b_branch: env::var("RUGC_PHASE62_V3B_BRANCH")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_plan: env::var("RUGC_PHASE63_PLAN")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_telemetry: env::var("RUGC_PHASE63_TELEMETRY")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_diagnostic: env::var("RUGC_PHASE63_DIAGNOSTIC")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_regime: env::var("RUGC_PHASE63_REGIME")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_canonical_plan: env::var("RUGC_PHASE63_CANONICAL_PLAN")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_canonical_regime: env::var("RUGC_PHASE63_CANONICAL_REGIME")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase63_canonical_target: env::var("RUGC_PHASE63_CANONICAL_TARGET")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase66_telemetry: env::var("RUGC_PHASE66_TELEMETRY")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        phase67_telemetry: env::var("RUGC_PHASE67_TELEMETRY")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
         final_trace_hash: report.final_trace_hash,
     }
 }
@@ -1994,6 +2261,30 @@ fn print_episode(metrics: &EpisodeMetrics) {
         metrics.self_consistency,
         metrics.meta_revision_count,
     );
+    if let Some(branch) = &metrics.phase62_v3b_branch {
+        println!("  phase62_v3b_branch={}", branch);
+    }
+    if let Some(plan) = &metrics.phase63_plan {
+        println!("  phase63_plan={}", plan);
+    }
+    if let Some(telemetry) = &metrics.phase63_telemetry {
+        println!("  phase63_telemetry={}", telemetry);
+    }
+    if let Some(diagnostic) = &metrics.phase63_diagnostic {
+        println!("  phase63_diagnostic={}", diagnostic);
+    }
+    if let Some(regime) = &metrics.phase63_regime {
+        println!("  phase63_regime={}", regime);
+    }
+    if let Some(plan) = &metrics.phase63_canonical_plan {
+        println!("  phase63_canonical_plan={}", plan);
+    }
+    if let Some(regime) = &metrics.phase63_canonical_regime {
+        println!("  phase63_canonical_regime={}", regime);
+    }
+    if let Some(target) = &metrics.phase63_canonical_target {
+        println!("  phase63_canonical_target={}", target);
+    }
     println!("  trace_hash={}... novelty={}", &metrics.final_trace_hash[..16], metrics.novelty_tag);
 }
 
@@ -2264,7 +2555,8 @@ fn run_mode(
         inject_phase6_recovery_optimization(&mut learner, holdout_spec, pass);
         inject_continuity_replay_smoothing(&mut learner, holdout_spec, pass);
         let recovery_spec = recovery_spec_from_holdout(holdout_spec);
-        let _trained_recovery_pre = run_episode(&mut learner, &recovery_spec, mode, config);
+        let trained_recovery_pre = run_episode(&mut learner, &recovery_spec, mode, config);
+        set_phase62_runtime_summary(holdout_spec, &trained_holdout, &trained_recovery_pre);
         inject_post_recovery_reconciliation(&mut learner, holdout_spec, pass, 0);
         let mut trained_recovery = run_episode(&mut learner, &recovery_spec, mode, config);
         let trained_bump = continuity_reconciliation_bump(trained_recovery.self_continuity_score);
@@ -2421,6 +2713,174 @@ fn run_mode(
         print_episode(&trained_recovery);
         println!("fresh recovery:");
         print_episode(&fresh_recovery);
+        if mode == RunMode::FullStack {
+            let continuity_delta =
+                trained_recovery_pre.self_continuity_score - trained_holdout.self_continuity_score;
+            let external_delta =
+                trained_recovery_pre.external_change_score - trained_holdout.external_change_score;
+            let region_delta =
+                trained_recovery_pre.topology_regions as i64 - trained_holdout.topology_regions as i64;
+            let anchor_delta =
+                trained_recovery_pre.active_anchors as i64 - trained_holdout.active_anchors as i64;
+            let realized_continuity_delta =
+                trained_recovery.self_continuity_score - trained_recovery_pre.self_continuity_score;
+            let realized_external_delta =
+                trained_recovery.external_change_score - trained_recovery_pre.external_change_score;
+            let realized_region_delta =
+                trained_recovery.topology_regions as i64 - trained_recovery_pre.topology_regions as i64;
+            let realized_anchor_delta =
+                trained_recovery.active_anchors as i64 - trained_recovery_pre.active_anchors as i64;
+            println!(
+                "phase63_canonical_snapshot holdout_id={} canonical_target={} canonical_regime={} canonical_plan={} continuity_delta={} external_delta={} region_delta={} anchor_delta={} holdout_hash={} boundary_hash={}",
+                holdout_spec.id,
+                trained_recovery_pre
+                    .phase63_canonical_target
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre
+                    .phase63_canonical_regime
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre
+                    .phase63_canonical_plan
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                continuity_delta,
+                external_delta,
+                region_delta,
+                anchor_delta,
+                trained_holdout.final_trace_hash,
+                trained_recovery_pre.final_trace_hash,
+            );
+            println!(
+                "phase63_canonical_realized_snapshot holdout_id={} canonical_target={} canonical_regime={} canonical_plan={} continuity_delta={} external_delta={} region_delta={} anchor_delta={} realized_continuity_delta={} realized_external_delta={} realized_region_delta={} realized_anchor_delta={} boundary_hash={} final_hash={}",
+                holdout_spec.id,
+                trained_recovery_pre
+                    .phase63_canonical_target
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre
+                    .phase63_canonical_regime
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre
+                    .phase63_canonical_plan
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                continuity_delta,
+                external_delta,
+                region_delta,
+                anchor_delta,
+                realized_continuity_delta,
+                realized_external_delta,
+                realized_region_delta,
+                realized_anchor_delta,
+                trained_recovery_pre.final_trace_hash,
+                trained_recovery.final_trace_hash,
+            );
+            println!(
+                "phase62_v3b_holdout_telemetry holdout_id={} pre_branch={} final_branch={} continuity={}=>{} regions={}=>{} anchors={}=>{} external={}=>{}",
+                holdout_spec.id,
+                trained_recovery_pre
+                    .phase62_v3b_branch
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery
+                    .phase62_v3b_branch
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_holdout.self_continuity_score,
+                trained_recovery_pre.self_continuity_score,
+                trained_holdout.topology_regions,
+                trained_recovery_pre.topology_regions,
+                trained_holdout.active_anchors,
+                trained_recovery_pre.active_anchors,
+                trained_holdout.external_change_score,
+                trained_recovery_pre.external_change_score,
+            );
+            let pre_phase63_plan = trained_recovery_pre
+                .phase63_plan
+                .clone()
+                .unwrap_or_else(|| "none".to_string());
+            let final_phase63_plan = trained_recovery
+                .phase63_plan
+                .clone()
+                .unwrap_or_else(|| "none".to_string());
+            let pre_phase63_telemetry = trained_recovery_pre
+                .phase63_telemetry
+                .clone()
+                .unwrap_or_else(|| "none".to_string());
+            let final_phase63_telemetry = trained_recovery
+                .phase63_telemetry
+                .clone()
+                .unwrap_or_else(|| "none".to_string());
+            let supervisor_intensity =
+                telemetry_i32_field(&pre_phase63_telemetry, "supervisor_intensity").unwrap_or(0);
+            let next_supervisor_intensity =
+                telemetry_i32_field(&final_phase63_telemetry, "supervisor_intensity").unwrap_or(0);
+            let effectiveness = supervisor_intensity - next_supervisor_intensity;
+            let problematic =
+                telemetry_bool_field(&final_phase63_telemetry, "problematic").unwrap_or(false);
+            let semantic_improvement_required = problematic && effectiveness >= 0;
+            let escalation_candidate = semantic_improvement_required;
+            let escalation_handoff = escalation_candidate;
+            let chosen_operator = phase63_plan_operators(&final_phase63_plan);
+
+            println!(
+                "phase63_holdout_telemetry holdout_id={} pre_plan={} final_plan={} pre_regime={} final_regime={} pre_telemetry={} final_telemetry={} supervisor_intensity={} next_supervisor_intensity={} chosen_operator={} effectiveness={} problematic={} semantic_improvement_required={} escalation_candidate={} escalation_handoff={} pre_hash={} final_hash={}",
+                holdout_spec.id,
+                pre_phase63_plan,
+                final_phase63_plan,
+                trained_recovery_pre
+                    .phase63_regime
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery
+                    .phase63_regime
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                pre_phase63_telemetry,
+                final_phase63_telemetry,
+                supervisor_intensity,
+                next_supervisor_intensity,
+                chosen_operator,
+                effectiveness,
+                problematic,
+                semantic_improvement_required,
+                escalation_candidate,
+                escalation_handoff,
+                trained_recovery_pre.final_trace_hash,
+                trained_recovery.final_trace_hash,
+            );
+            println!(
+                "phase66_holdout_telemetry holdout_id={} pre_telemetry={} final_telemetry={} pre_hash={} final_hash={}",
+                holdout_spec.id,
+                trained_recovery_pre
+                    .phase66_telemetry
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery
+                    .phase66_telemetry
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre.final_trace_hash,
+                trained_recovery.final_trace_hash,
+            );
+            println!(
+                "phase67_holdout_telemetry holdout_id={} pre_telemetry={} final_telemetry={} pre_hash={} final_hash={}",
+                holdout_spec.id,
+                trained_recovery_pre
+                    .phase67_telemetry
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery
+                    .phase67_telemetry
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre.final_trace_hash,
+                trained_recovery.final_trace_hash,
+            );
+        }
         println!();
 
         holdout_results.push(HoldoutPairResult {

@@ -83,8 +83,10 @@ pub mod cognition {
         Phase61StructuralRecoveryState,
     };
     pub use phase62_structural_experiment::{
-        apply_phase62_structural_experiment, Phase62ExperimentKind, Phase62StructuralConfig,
-        Phase62StructuralReport,
+        apply_phase62_structural_experiment, Phase62ExperimentKind, Phase62ExperimentPlan,
+        Phase62RuntimeSummary, Phase62StructuralConfig, Phase62StructuralReport,
+        Phase62V3Branch, Phase63Kind, Phase63RegionRole, Phase63RepairOperator,
+        Phase63RepairPlan, Phase63RepairTarget, Phase63RuntimeSummary, Phase63Telemetry,
     };
 }
 
@@ -149,8 +151,18 @@ pub use cognition::{
     Phase61StructuralRecoveryConfig,
     Phase61StructuralRecoveryState,
     Phase62ExperimentKind,
+    Phase62ExperimentPlan,
+    Phase62RuntimeSummary,
     Phase62StructuralConfig,
     Phase62StructuralReport,
+    Phase62V3Branch,
+    Phase63Kind,
+    Phase63RegionRole,
+    Phase63RepairOperator,
+    Phase63RepairPlan,
+    Phase63RepairTarget,
+    Phase63RuntimeSummary,
+    Phase63Telemetry,
     apply_phase62_structural_experiment,
     GoalAttractor,
     GoalHierarchy,

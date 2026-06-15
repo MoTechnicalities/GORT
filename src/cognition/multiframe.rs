@@ -5,7 +5,7 @@ use crate::cognition::phase61_structural_recovery::{
     Phase61SignalSnapshot, Phase61StructuralRecoveryConfig, Phase61StructuralRecoveryState,
 };
 use crate::cognition::phase62_structural_experiment::{
-    apply_phase62_structural_experiment, Phase62StructuralConfig,
+    apply_phase62_structural_experiment, Phase62ExperimentKind, Phase62StructuralConfig,
 };
 use crate::cognition::scheduler::TaskScheduler;
 use crate::geom::field::{ConceptCluster, SemanticField};
@@ -1293,6 +1293,35 @@ fn phase62_env_u8(name: &str) -> Option<u8> {
     env::var(name).ok().and_then(|v| v.trim().parse::<u8>().ok())
 }
 
+fn phase62_env_kind(name: &str) -> Option<Phase62ExperimentKind> {
+    env::var(name).ok().and_then(|v| {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "anchor" | "anchor_closure" | "anchor_closure_spine_v1" | "v1" => {
+                Some(Phase62ExperimentKind::AnchorClosureSpineV1)
+            }
+            "region" | "region_merge" | "region_merge_split" | "v2" => {
+                Some(Phase62ExperimentKind::RegionMergeSplitStabilizationV1)
+            }
+            "drift" | "manifold_drift" | "drift_suppression" | "plateau" | "v2b" => {
+                Some(Phase62ExperimentKind::ManifoldDriftSuppressionV1)
+            }
+            "contradiction" | "contradiction_relief" | "relief" | "v3" => {
+                Some(Phase62ExperimentKind::ContradictionReliefV1)
+            }
+            "contradiction_closure" | "closure_regime" | "v3b" => {
+                Some(Phase62ExperimentKind::ContradictionClosureRegimeV2)
+            }
+            "phase63" | "topology_repair" | "topology_guided" | "v4" => {
+                Some(Phase62ExperimentKind::TopologyGuidedContradictionRepairV3)
+            }
+            "phase66" | "continuity_rebase" | "continuity_window" | "v6" => {
+                Some(Phase62ExperimentKind::ContinuityRebaseTelemetryV6)
+            }
+            _ => None,
+        }
+    })
+}
+
 fn frame_matches_phase62_target_novelty(constraints: &[SemanticConstraint], target: &str) -> bool {
     constraints
         .iter()
@@ -1321,6 +1350,9 @@ fn phase62_config_for_frame(constraints: &[SemanticConstraint]) -> Phase62Struct
     }
     if let Some(weight) = phase62_env_u8("RUGC_PHASE62_BRIDGE_WEIGHT") {
         config.bridge_weight = weight.max(1);
+    }
+    if let Some(kind) = phase62_env_kind("RUGC_PHASE62_KIND") {
+        config.kind = kind;
     }
 
     config.enabled = true;
