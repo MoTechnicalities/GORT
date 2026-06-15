@@ -52,7 +52,9 @@ const PHASE63_ESCALATION_HANDOFF: &str = "GORT_PHASE63_ESCALATION_HANDOFF";
 const PHASE66_TELEMETRY: &str = "GORT_PHASE66_TELEMETRY";
 const PHASE67_TELEMETRY: &str = "GORT_PHASE67_TELEMETRY";
 const PHASE70_TELEMETRY: &str = "GORT_PHASE70_TELEMETRY";
+const PHASE70_ADJUSTMENT_LOG: &str = "GORT_PHASE70_ADJUSTMENT_LOG";
 const PHASE70_CONTINUITY_PRESSURE_BOOST: &str = "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST";
+const PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST: &str = "continuity_pressure_boost";
 const PHASE70_ADJUSTMENT_DELTA: i32 = 1;
 const PHASE70_ADJUSTMENT_MAX_BOOST: i32 = 2;   // max additional boost above PHASE66_REBASE_BETA
 const PHASE66_REBASE_ALPHA_NUMERATOR: i32 = 4;
@@ -234,6 +236,171 @@ pub struct Phase70Telemetry {
     pub semantic_context_used: String,
     pub pre_value: i32,
     pub post_value: i32,
+}
+
+/// Single reversible structural adjustment event in Phase 7.x.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70AdjustmentLogEntry {
+    pub sequence: u64,
+    pub holdout_id: String,
+    pub parameter_name: String,
+    pub semantic_context_used: String,
+    pub adjustment_applied: bool,
+    pub pre_value: i32,
+    pub post_value: i32,
+    pub delta: i32,
+    pub inverse_delta: i32,
+}
+
+/// Append-only deterministic adjustment log for Phase 7.x.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70AdjustmentLog {
+    pub entries: Vec<Phase70AdjustmentLogEntry>,
+}
+
+/// Canonical structural-parameter descriptor for Phase 7.x.
+/// The registry is deterministic and defines bounded, reversible adjustments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70StructuralParameterSpec {
+    pub name: String,
+    pub env_key: String,
+    pub min_value: i32,
+    pub max_value: i32,
+    pub delta: i32,
+    pub inverse_delta: i32,
+}
+
+/// Ordered registry of structural parameters that Phase 7.x may adjust.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70StructuralParameterRegistry {
+    pub parameters: Vec<Phase70StructuralParameterSpec>,
+}
+
+impl Phase70StructuralParameterRegistry {
+    /// Returns the canonical deterministic registry for Phase 7.x.
+    pub fn canonical() -> Self {
+        Self {
+            parameters: vec![Phase70StructuralParameterSpec {
+                name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                env_key: PHASE70_CONTINUITY_PRESSURE_BOOST.to_string(),
+                min_value: 0,
+                max_value: PHASE70_ADJUSTMENT_MAX_BOOST,
+                delta: PHASE70_ADJUSTMENT_DELTA,
+                inverse_delta: -PHASE70_ADJUSTMENT_DELTA,
+            }],
+        }
+    }
+
+    fn get(&self, name: &str) -> Option<&Phase70StructuralParameterSpec> {
+        self.parameters.iter().find(|parameter| parameter.name == name)
+    }
+}
+
+fn phase70_apply_parameter_step(
+    spec: &Phase70StructuralParameterSpec,
+    pre_value: i32,
+    apply: bool,
+) -> (i32, i32) {
+    if !apply {
+        return (pre_value, 0);
+    }
+
+    let post_value = (pre_value + spec.delta).clamp(spec.min_value, spec.max_value);
+    let applied_delta = post_value - pre_value;
+    (post_value, applied_delta)
+}
+
+fn phase70_adjustment_log_entry_line(entry: &Phase70AdjustmentLogEntry) -> String {
+    format!(
+        "sequence={} holdout_id={} parameter_name={} semantic_context_used={} adjustment_applied={} pre_value={} post_value={} delta={} inverse_delta={}",
+        entry.sequence,
+        entry.holdout_id,
+        entry.parameter_name,
+        entry.semantic_context_used,
+        entry.adjustment_applied,
+        entry.pre_value,
+        entry.post_value,
+        entry.delta,
+        entry.inverse_delta,
+    )
+}
+
+fn phase70_adjustment_log_entry_parse(line: &str) -> Option<Phase70AdjustmentLogEntry> {
+    let sequence = parse_telemetry_field(line, "sequence")?.parse::<u64>().ok()?;
+    let holdout_id = parse_telemetry_field(line, "holdout_id")?;
+    let parameter_name = parse_telemetry_field(line, "parameter_name")?;
+    let semantic_context_used = parse_telemetry_field(line, "semantic_context_used")?;
+    let adjustment_applied = match parse_telemetry_field(line, "adjustment_applied")?.as_str() {
+        "true" => true,
+        "false" => false,
+        _ => return None,
+    };
+    let pre_value = parse_telemetry_field(line, "pre_value")?.parse::<i32>().ok()?;
+    let post_value = parse_telemetry_field(line, "post_value")?.parse::<i32>().ok()?;
+    let delta = parse_telemetry_field(line, "delta")?.parse::<i32>().ok()?;
+    let inverse_delta = parse_telemetry_field(line, "inverse_delta")?.parse::<i32>().ok()?;
+
+    Some(Phase70AdjustmentLogEntry {
+        sequence,
+        holdout_id,
+        parameter_name,
+        semantic_context_used,
+        adjustment_applied,
+        pre_value,
+        post_value,
+        delta,
+        inverse_delta,
+    })
+}
+
+fn phase70_adjustment_log_from_env() -> Phase70AdjustmentLog {
+    let Some(raw) = env::var(PHASE70_ADJUSTMENT_LOG).ok() else {
+        return Phase70AdjustmentLog { entries: vec![] };
+    };
+
+    let entries = raw
+        .split('|')
+        .filter(|line| !line.trim().is_empty())
+        .filter_map(phase70_adjustment_log_entry_parse)
+        .collect::<Vec<_>>();
+    Phase70AdjustmentLog { entries }
+}
+
+fn phase70_adjustment_log_to_line(log: &Phase70AdjustmentLog) -> String {
+    log.entries
+        .iter()
+        .map(phase70_adjustment_log_entry_line)
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+fn phase70_append_adjustment_log_entry(
+    holdout_id: &str,
+    parameter_name: &str,
+    semantic_context_used: &str,
+    adjustment_applied: bool,
+    pre_value: i32,
+    post_value: i32,
+    delta: i32,
+) -> Phase70AdjustmentLog {
+    let mut log = phase70_adjustment_log_from_env();
+    let sequence = log.entries.len() as u64 + 1;
+    let inverse_delta = if adjustment_applied { -delta } else { 0 };
+
+    log.entries.push(Phase70AdjustmentLogEntry {
+        sequence,
+        holdout_id: holdout_id.to_string(),
+        parameter_name: parameter_name.to_string(),
+        semantic_context_used: semantic_context_used.to_string(),
+        adjustment_applied,
+        pre_value,
+        post_value,
+        delta,
+        inverse_delta,
+    });
+
+    env::set_var(PHASE70_ADJUSTMENT_LOG, phase70_adjustment_log_to_line(&log));
+    log
 }
 
 impl Phase63RuntimeSummary {
@@ -588,32 +755,45 @@ fn phase70_telemetry_line(telemetry: &Phase70Telemetry) -> String {
 pub fn scaffold_phase70_structural_adjustment(
     phase67: &Phase67Telemetry,
 ) -> Phase70Telemetry {
-    let parameter_name = "continuity_pressure_boost";
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let parameter = registry
+        .get(PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST)
+        .expect("phase70 canonical registry must define continuity pressure boost");
+
     let pre_value = phase70_continuity_pressure_boost_from_env();
 
     let should_adjust = phase67.phase67_escalation_marker_in
         && phase67.phase67_semantic_context == "continuity_insensitive";
 
-    let (adjustment_applied, post_value) = if should_adjust {
-        let new_value = (pre_value + PHASE70_ADJUSTMENT_DELTA).min(PHASE70_ADJUSTMENT_MAX_BOOST);
-        env::set_var(PHASE70_CONTINUITY_PRESSURE_BOOST, new_value.to_string());
-        (true, new_value)
+    let (adjustment_applied, post_value, delta) = if should_adjust {
+        let (new_value, applied_delta) = phase70_apply_parameter_step(parameter, pre_value, true);
+        env::set_var(parameter.env_key.as_str(), new_value.to_string());
+        (true, new_value, applied_delta)
     } else {
         // No adjustment: preserve current value; no write to env var.
-        (false, pre_value)
+        (false, pre_value, 0)
     };
 
     let telemetry = Phase70Telemetry {
         holdout_id: phase67.holdout_id.clone(),
         adjustment_applied,
-        parameter_name: parameter_name.to_string(),
-        delta: if adjustment_applied { post_value - pre_value } else { 0 },
+        parameter_name: parameter.name.clone(),
+        delta,
         semantic_context_used: phase67.phase67_semantic_context.clone(),
         pre_value,
         post_value,
     };
 
     env::set_var(PHASE70_TELEMETRY, phase70_telemetry_line(&telemetry));
+    phase70_append_adjustment_log_entry(
+        &telemetry.holdout_id,
+        &telemetry.parameter_name,
+        &telemetry.semantic_context_used,
+        telemetry.adjustment_applied,
+        telemetry.pre_value,
+        telemetry.post_value,
+        telemetry.delta,
+    );
     telemetry
 }
 
@@ -3631,6 +3811,141 @@ mod tests {
         match previous {
             Some(value) => env::set_var(PHASE66_TELEMETRY, value),
             None => env::remove_var(PHASE66_TELEMETRY),
+        }
+    }
+
+    #[test]
+    fn phase70_registry_is_deterministic_and_canonical() {
+        let reg_a = Phase70StructuralParameterRegistry::canonical();
+        let reg_b = Phase70StructuralParameterRegistry::canonical();
+
+        assert_eq!(reg_a, reg_b);
+        assert_eq!(reg_a.parameters.len(), 1);
+        assert_eq!(reg_a.parameters[0].name, PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST);
+        assert_eq!(reg_a.parameters[0].env_key, PHASE70_CONTINUITY_PRESSURE_BOOST);
+    }
+
+    #[test]
+    fn phase70_registry_declares_reversible_bounded_parameter() {
+        let reg = Phase70StructuralParameterRegistry::canonical();
+        let spec = reg
+            .get(PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST)
+            .expect("canonical phase70 parameter should exist");
+
+        assert!(spec.min_value <= spec.max_value);
+        assert!(spec.delta > 0);
+        assert_eq!(spec.inverse_delta, -spec.delta);
+    }
+
+    #[test]
+    fn phase70_registry_step_is_bounded_and_reversible_by_inverse() {
+        let reg = Phase70StructuralParameterRegistry::canonical();
+        let spec = reg
+            .get(PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST)
+            .expect("canonical phase70 parameter should exist");
+
+        let (post_0, delta_0) = phase70_apply_parameter_step(spec, 0, true);
+        assert_eq!(post_0, 1);
+        assert_eq!(delta_0, 1);
+
+        let (post_max, delta_max) = phase70_apply_parameter_step(spec, spec.max_value, true);
+        assert_eq!(post_max, spec.max_value);
+        assert_eq!(delta_max, 0);
+
+        let reversed = (post_0 + spec.inverse_delta).clamp(spec.min_value, spec.max_value);
+        assert_eq!(reversed, 0);
+    }
+
+    #[test]
+    fn phase70_adjustment_log_appends_with_deterministic_sequence_and_payload() {
+        let previous_log = env::var(PHASE70_ADJUSTMENT_LOG).ok();
+        let previous_boost = env::var(PHASE70_CONTINUITY_PRESSURE_BOOST).ok();
+        let previous_telemetry = env::var(PHASE70_TELEMETRY).ok();
+
+        env::remove_var(PHASE70_ADJUSTMENT_LOG);
+        env::set_var(PHASE70_CONTINUITY_PRESSURE_BOOST, "0");
+
+        let first = Phase67Telemetry {
+            holdout_id: "holdout_04_recovery".to_string(),
+            phase67_escalation_marker_in: true,
+            phase67_semantic_context: "continuity_insensitive".to_string(),
+            phase67_ready: true,
+        };
+        let second = Phase67Telemetry {
+            holdout_id: "holdout_05_recovery".to_string(),
+            phase67_escalation_marker_in: false,
+            phase67_semantic_context: "none".to_string(),
+            phase67_ready: true,
+        };
+
+        let _ = scaffold_phase70_structural_adjustment(&first);
+        let _ = scaffold_phase70_structural_adjustment(&second);
+
+        let log = phase70_adjustment_log_from_env();
+        assert_eq!(log.entries.len(), 2);
+
+        let e1 = &log.entries[0];
+        assert_eq!(e1.sequence, 1);
+        assert_eq!(e1.holdout_id, "holdout_04_recovery");
+        assert_eq!(e1.parameter_name, PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST);
+        assert_eq!(e1.semantic_context_used, "continuity_insensitive");
+        assert!(e1.adjustment_applied);
+
+        let e2 = &log.entries[1];
+        assert_eq!(e2.sequence, 2);
+        assert_eq!(e2.holdout_id, "holdout_05_recovery");
+        assert_eq!(e2.parameter_name, PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST);
+        assert_eq!(e2.semantic_context_used, "none");
+        assert!(!e2.adjustment_applied);
+
+        match previous_log {
+            Some(value) => env::set_var(PHASE70_ADJUSTMENT_LOG, value),
+            None => env::remove_var(PHASE70_ADJUSTMENT_LOG),
+        }
+        match previous_boost {
+            Some(value) => env::set_var(PHASE70_CONTINUITY_PRESSURE_BOOST, value),
+            None => env::remove_var(PHASE70_CONTINUITY_PRESSURE_BOOST),
+        }
+        match previous_telemetry {
+            Some(value) => env::set_var(PHASE70_TELEMETRY, value),
+            None => env::remove_var(PHASE70_TELEMETRY),
+        }
+    }
+
+    #[test]
+    fn phase70_adjustment_log_entry_inverse_delta_restores_pre_value_for_applied_steps() {
+        let previous_log = env::var(PHASE70_ADJUSTMENT_LOG).ok();
+        let previous_boost = env::var(PHASE70_CONTINUITY_PRESSURE_BOOST).ok();
+        let previous_telemetry = env::var(PHASE70_TELEMETRY).ok();
+
+        env::remove_var(PHASE70_ADJUSTMENT_LOG);
+        env::set_var(PHASE70_CONTINUITY_PRESSURE_BOOST, "0");
+
+        let telemetry = scaffold_phase70_structural_adjustment(&Phase67Telemetry {
+            holdout_id: "holdout_02_recovery".to_string(),
+            phase67_escalation_marker_in: true,
+            phase67_semantic_context: "continuity_insensitive".to_string(),
+            phase67_ready: true,
+        });
+
+        let log = phase70_adjustment_log_from_env();
+        assert_eq!(log.entries.len(), 1);
+        let entry = &log.entries[0];
+
+        assert_eq!(entry.delta, telemetry.delta);
+        assert_eq!(entry.post_value + entry.inverse_delta, entry.pre_value);
+
+        match previous_log {
+            Some(value) => env::set_var(PHASE70_ADJUSTMENT_LOG, value),
+            None => env::remove_var(PHASE70_ADJUSTMENT_LOG),
+        }
+        match previous_boost {
+            Some(value) => env::set_var(PHASE70_CONTINUITY_PRESSURE_BOOST, value),
+            None => env::remove_var(PHASE70_CONTINUITY_PRESSURE_BOOST),
+        }
+        match previous_telemetry {
+            Some(value) => env::set_var(PHASE70_TELEMETRY, value),
+            None => env::remove_var(PHASE70_TELEMETRY),
         }
     }
 }
