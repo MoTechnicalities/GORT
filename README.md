@@ -15,6 +15,40 @@ GORT rejects the statistical/probabilistic paradigm that dominates modern AI. In
 
 This is not pattern-matching. This is cognition.
 
+## Cognitive Identity
+
+GORT is precisely the third type of reasoning system:
+
+```
+Logic      = correctness
+
+Cognition  = relevance
+           + prioritization
+           + context
+           + correctness
+```
+
+Logic is necessary. Logic alone is not sufficient.
+
+> **GORT must always preserve correctness,**
+> **but correctness must always be filtered through relevance, prioritization, and context.**
+
+This is the difference between a calculator, a logic engine, and a cognition engine.
+GORT is explicitly the third.
+
+### Developmental Arc
+
+| Phase | Cognitive Capability |
+|---|---|
+| Phase 6.3 | Operator-regulated prioritization |
+| Phase 6.6 | Semantic relevance detection |
+| Phase 6.7 | Contextual escalation semantics |
+| Phase 7.x | Structural self-modification from context and relevance |
+| Phase 8.x | Choice-driven structural adaptation |
+| Phase 9.x | Structure-driven cognitive improvement |
+
+The substrate for the first four is already built.
+
 ## Design Axiom: Geometry Emerges From Stability
 
 GORT adopts a developmental architecture where geometry is not assumed at initialization.

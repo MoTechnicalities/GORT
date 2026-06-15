@@ -70,3 +70,51 @@ GORT does not postpone geometry by accident.
 GORT postpones geometry by design until developmental preconditions are satisfied.
 
 This positions "Emergent Cognitive Geometry" as a Phase 5 milestone grounded in verified state continuity, anchor stability, and relational emergence.
+
+---
+
+## Cognitive Identity Axiom
+
+This is the defining separation between a logic engine and a cognition engine:
+
+```
+Logic      = correctness
+
+Cognition  = relevance
+           + prioritization
+           + context
+           + correctness
+```
+
+Logic is necessary. Logic alone is not sufficient.
+
+GORT is explicitly a cognition engine — not a calculator, not a logic engine.
+
+### Formal Statement
+
+> GORT must always preserve correctness,
+> but correctness must always be filtered through relevance, prioritization, and context.
+
+This is the north star for all future phases.
+
+### Developmental Mapping
+
+| Phase | Capability Added |
+|---|---|
+| Phase 6.3 | Operator-regulated prioritization |
+| Phase 6.6 | Semantic relevance detection |
+| Phase 6.7 | Contextual escalation semantics |
+| Phase 7.x | Structural self-modification based on context and relevance |
+| Phase 8.x | Choice-driven structural adaptation |
+| Phase 9.x | Structure-driven cognitive improvement |
+
+### Architectural Rule
+
+Every capability added to GORT must be traceable to one of the four cognitive components:
+
+- **Correctness** — deterministic, auditable, replay-stable output
+- **Relevance** — distinguishing signal from noise in semantic space
+- **Prioritization** — routing energy toward what matters most
+- **Context** — carrying forward accumulated state to inform current decisions
+
+A feature that advances none of these is architectural noise.
