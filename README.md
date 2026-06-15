@@ -284,6 +284,22 @@ cargo run --example phase57_meta_intent
 cargo test
 ```
 
+### Speed Demonstration
+
+Lightweight answer-like cognition cycle timing demo:
+
+```bash
+./scripts/phase80_answer_speed_demo.sh 10
+```
+
+Heavy replay-stability verification harness:
+
+```bash
+./scripts/phase80_stress_harness.sh 2
+```
+
+For measured comparison results and interpretation, see `docs/PHASE80_SPEED_DEMONSTRATION.md`.
+
 ## Design Principles
 
 ### 1. Determinism by Default
