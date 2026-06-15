@@ -106,6 +106,7 @@ struct EpisodeMetrics {
     phase63_canonical_target: Option<String>,
     phase66_telemetry: Option<String>,
     phase67_telemetry: Option<String>,
+    phase70_telemetry: Option<String>,
     final_trace_hash: String,
 }
 
@@ -345,6 +346,8 @@ struct Phase62EnvScope {
     prev_runtime_phase63_canonical_target: Option<String>,
     prev_runtime_phase66_telemetry: Option<String>,
     prev_runtime_phase67_telemetry: Option<String>,
+    prev_runtime_phase70_telemetry: Option<String>,
+    prev_runtime_phase70_continuity_pressure_boost: Option<String>,
 }
 
 impl Drop for Phase62EnvScope {
@@ -429,6 +432,14 @@ impl Drop for Phase62EnvScope {
             "GORT_PHASE67_TELEMETRY",
             self.prev_runtime_phase67_telemetry.take(),
         );
+        restore_env_var(
+            "GORT_PHASE70_TELEMETRY",
+            self.prev_runtime_phase70_telemetry.take(),
+        );
+        restore_env_var(
+            "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST",
+            self.prev_runtime_phase70_continuity_pressure_boost.take(),
+        );
     }
 }
 
@@ -472,6 +483,11 @@ fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeT
         prev_runtime_phase63_canonical_target: env::var("GORT_PHASE63_CANONICAL_TARGET").ok(),
         prev_runtime_phase66_telemetry: env::var("GORT_PHASE66_TELEMETRY").ok(),
         prev_runtime_phase67_telemetry: env::var("GORT_PHASE67_TELEMETRY").ok(),
+        prev_runtime_phase70_telemetry: env::var("GORT_PHASE70_TELEMETRY").ok(),
+        // Note: we do NOT save/restore GORT_PHASE70_CONTINUITY_PRESSURE_BOOST across
+        // episodes — it is intentionally persistent so adjustments accumulate across
+        // the episode sequence (the first instance of geometric memory).
+        prev_runtime_phase70_continuity_pressure_boost: None,
     };
 
     if toggle.enabled {
@@ -491,6 +507,9 @@ fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeT
         env::remove_var("GORT_PHASE63_CANONICAL_TARGET");
         env::remove_var("GORT_PHASE66_TELEMETRY");
         env::remove_var("GORT_PHASE67_TELEMETRY");
+        env::remove_var("GORT_PHASE70_TELEMETRY");
+        // GORT_PHASE70_CONTINUITY_PRESSURE_BOOST is NOT cleared between enabled episodes;
+        // it persists to allow the adjustment to accumulate (geometric memory).
     } else {
         env::set_var("GORT_PHASE62_ENABLE", "0");
         env::remove_var("GORT_PHASE62_TARGET_NOVELTY");
@@ -505,6 +524,7 @@ fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeT
         env::remove_var("GORT_PHASE63_CANONICAL_TARGET");
         env::remove_var("GORT_PHASE66_TELEMETRY");
         env::remove_var("GORT_PHASE67_TELEMETRY");
+        env::remove_var("GORT_PHASE70_TELEMETRY");
     }
 
     scope
@@ -1931,6 +1951,9 @@ fn run_episode(
         phase67_telemetry: env::var("GORT_PHASE67_TELEMETRY")
             .ok()
             .filter(|v| !v.trim().is_empty()),
+        phase70_telemetry: env::var("GORT_PHASE70_TELEMETRY")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
         final_trace_hash: report.final_trace_hash,
     }
 }
@@ -2875,6 +2898,20 @@ fn run_mode(
                     .unwrap_or_else(|| "none".to_string()),
                 trained_recovery
                     .phase67_telemetry
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery_pre.final_trace_hash,
+                trained_recovery.final_trace_hash,
+            );
+            println!(
+                "phase70_holdout_telemetry holdout_id={} pre_telemetry={} final_telemetry={} pre_hash={} final_hash={}",
+                holdout_spec.id,
+                trained_recovery_pre
+                    .phase70_telemetry
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                trained_recovery
+                    .phase70_telemetry
                     .clone()
                     .unwrap_or_else(|| "none".to_string()),
                 trained_recovery_pre.final_trace_hash,

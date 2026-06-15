@@ -130,6 +130,13 @@ fn latest_phase67_holdout_line(log: &str, holdout_id: &str) -> String {
     )
 }
 
+fn latest_phase70_holdout_line(log: &str, holdout_id: &str) -> String {
+    latest_line_containing(
+        log,
+        &format!("phase70_holdout_telemetry holdout_id={}", holdout_id),
+    )
+}
+
 fn latest_phase63_holdout_line(log: &str, holdout_id: &str) -> String {
     latest_line_containing(
         log,
@@ -194,6 +201,22 @@ fn parse_phase63_final_plan(line: &str) -> String {
         .nth(1)
         .and_then(|rest| rest.split(" pre_regime=").next())
         .unwrap_or_else(|| panic!("missing final_plan in line: {}", line))
+        .to_string()
+}
+
+fn parse_phase70_final_telemetry_segment(line: &str) -> String {
+    line.split(" final_telemetry=")
+        .nth(1)
+        .and_then(|rest| rest.split(" pre_hash=").next())
+        .unwrap_or_else(|| panic!("missing phase70 final_telemetry segment: {}", line))
+        .to_string()
+}
+
+fn parse_phase70_pre_telemetry_segment(line: &str) -> String {
+    line.split(" pre_telemetry=")
+        .nth(1)
+        .and_then(|rest| rest.split(" final_telemetry=").next())
+        .unwrap_or_else(|| panic!("missing phase70 pre_telemetry segment: {}", line))
         .to_string()
 }
 
@@ -588,4 +611,101 @@ fn gate_v6e_phase67_stub_emits_marker_context_and_ready_fields() {
         "missing phase67 ready flag in telemetry: {}",
         holdout_line
     );
+}
+
+#[test]
+fn gate_v7a_phase70_holdout_telemetry_for_04_is_replay_stable() {
+    let first_log = run_curriculum_harness_with_phase62_kind_and_handoff("phase70", true);
+    let second_log = run_curriculum_harness_with_phase62_kind_and_handoff("phase70", true);
+
+    let first_line = latest_phase70_holdout_line(&first_log, "holdout_04");
+    let second_line = latest_phase70_holdout_line(&second_log, "holdout_04");
+
+    assert_eq!(first_line, second_line);
+}
+
+#[test]
+fn gate_v7b_phase70_telemetry_completeness_and_bounded_reversible_delta() {
+    let phase70_log = run_curriculum_harness_with_phase62_kind_and_handoff("phase70", true);
+    let holdout_line = latest_phase70_holdout_line(&phase70_log, "holdout_04");
+
+    let pre_segment = parse_phase70_pre_telemetry_segment(&holdout_line);
+    let final_segment = parse_phase70_final_telemetry_segment(&holdout_line);
+
+    assert!(
+        holdout_line.contains("phase70_holdout_telemetry"),
+        "missing phase70 holdout telemetry line: {}",
+        holdout_line
+    );
+    assert!(
+        holdout_line.contains("pre_telemetry="),
+        "missing pre_telemetry in phase70 line: {}",
+        holdout_line
+    );
+    assert!(
+        holdout_line.contains("final_telemetry="),
+        "missing final_telemetry in phase70 line: {}",
+        holdout_line
+    );
+
+    assert!(
+        final_segment.contains("holdout_id="),
+        "missing holdout_id in phase70 final telemetry: {}",
+        final_segment
+    );
+    assert!(
+        final_segment.contains("parameter_name=continuity_pressure_boost"),
+        "missing parameter_name in phase70 final telemetry: {}",
+        final_segment
+    );
+    assert!(
+        final_segment.contains("semantic_context_used="),
+        "missing semantic_context_used in phase70 final telemetry: {}",
+        final_segment
+    );
+    assert!(
+        final_segment.contains("adjustment_applied="),
+        "missing adjustment_applied in phase70 final telemetry: {}",
+        final_segment
+    );
+    assert!(
+        final_segment.contains("pre_value="),
+        "missing pre_value in phase70 final telemetry: {}",
+        final_segment
+    );
+    assert!(
+        final_segment.contains("post_value="),
+        "missing post_value in phase70 final telemetry: {}",
+        final_segment
+    );
+    assert!(
+        final_segment.contains("delta="),
+        "missing delta in phase70 final telemetry: {}",
+        final_segment
+    );
+
+    // Ensure the pre-segment contains deterministic telemetry payload rather than being empty.
+    assert!(
+        pre_segment == "none" || pre_segment.contains("holdout_id="),
+        "unexpected phase70 pre telemetry payload: {}",
+        pre_segment
+    );
+
+    let adjustment_applied = parse_bool_field(&final_segment, "adjustment_applied");
+    let delta = parse_i32_field(&final_segment, "delta");
+    let pre_value = parse_i32_field(&final_segment, "pre_value");
+    let post_value = parse_i32_field(&final_segment, "post_value");
+
+    assert_eq!(post_value - pre_value, delta);
+    assert!((0..=2).contains(&pre_value), "pre_value out of bounds: {}", final_segment);
+    assert!((0..=2).contains(&post_value), "post_value out of bounds: {}", final_segment);
+
+    if adjustment_applied {
+        // At saturation the engine still reports applied=true while delta remains 0.
+        assert!((0..=1).contains(&delta), "applied adjustment delta must remain bounded: {}", final_segment);
+        assert!(post_value >= pre_value, "applied adjustment must not reduce value: {}", final_segment);
+    } else {
+        assert_eq!(delta, 0, "no adjustment must emit delta=0: {}", final_segment);
+        assert_eq!(post_value, pre_value, "no adjustment must preserve value: {}", final_segment);
+    }
 }

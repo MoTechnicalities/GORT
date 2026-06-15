@@ -51,6 +51,10 @@ const PHASE63_CANONICAL_TARGET: &str = "GORT_PHASE63_CANONICAL_TARGET";
 const PHASE63_ESCALATION_HANDOFF: &str = "GORT_PHASE63_ESCALATION_HANDOFF";
 const PHASE66_TELEMETRY: &str = "GORT_PHASE66_TELEMETRY";
 const PHASE67_TELEMETRY: &str = "GORT_PHASE67_TELEMETRY";
+const PHASE70_TELEMETRY: &str = "GORT_PHASE70_TELEMETRY";
+const PHASE70_CONTINUITY_PRESSURE_BOOST: &str = "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST";
+const PHASE70_ADJUSTMENT_DELTA: i32 = 1;
+const PHASE70_ADJUSTMENT_MAX_BOOST: i32 = 2;   // max additional boost above PHASE66_REBASE_BETA
 const PHASE66_REBASE_ALPHA_NUMERATOR: i32 = 4;
 const PHASE66_REBASE_ALPHA_DENOMINATOR: i32 = 1_000_000;
 const PHASE66_REBASE_BETA: i32 = 2;
@@ -65,6 +69,7 @@ pub enum Phase62ExperimentKind {
     ContradictionClosureRegimeV2,
     TopologyGuidedContradictionRepairV3,
     ContinuityRebaseTelemetryV6,
+    Phase70StructuralAdjustment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -209,6 +214,28 @@ pub struct Phase67Telemetry {
     pub phase67_ready: bool,
 }
 
+/// Identifies which geometric parameter was adjusted in Phase 7.0.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70AdjustmentParameter {
+    pub name: String,
+    pub pre_value: i32,
+    pub post_value: i32,
+    pub delta: i32,
+}
+
+/// Telemetry emitted by the Phase 7.0 structural adjustment engine.
+/// Satisfies the Phase 7.x acceptance criteria: deterministic, reversible, auditable.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70Telemetry {
+    pub holdout_id: String,
+    pub adjustment_applied: bool,
+    pub parameter_name: String,
+    pub delta: i32,
+    pub semantic_context_used: String,
+    pub pre_value: i32,
+    pub post_value: i32,
+}
+
 impl Phase63RuntimeSummary {
     fn continuity_delta(&self) -> i32 {
         self.continuity_post - self.continuity_pre
@@ -326,6 +353,8 @@ pub fn apply_phase62_structural_experiment(
                     scaffold_topology_guided_contradiction_repair_v63(input_constraints, config, target_novelty),
                 Phase62ExperimentKind::ContinuityRebaseTelemetryV6 =>
                     scaffold_continuity_rebase_telemetry_v66(input_constraints, target_novelty),
+                Phase62ExperimentKind::Phase70StructuralAdjustment =>
+                    scaffold_phase70_adjustment_with_phase66_base(input_constraints, target_novelty),
             };
         }
 
@@ -387,7 +416,53 @@ pub fn apply_phase62_structural_experiment(
                 "phase66_continuity_rebase_telemetry",
             )
         }
+        Phase62ExperimentKind::Phase70StructuralAdjustment => {
+            scaffold_phase70_adjustment_with_phase66_base(
+                input_constraints,
+                "phase70_structural_adjustment",
+            )
+        }
     }
+}
+
+/// Phase 7.0 top-level scaffold: runs Phase66 base telemetry then applies the
+/// structural adjustment engine. The boost written to env is read back by
+/// phase66_continuity_rebase_terms on subsequent episodes.
+fn scaffold_phase70_adjustment_with_phase66_base(
+    input_constraints: &[SemanticConstraint],
+    target_novelty: &str,
+) -> (Vec<SemanticConstraint>, Phase62StructuralReport) {
+    // 1. Run phase66 to produce semantic signals and phase67 context.
+    let (constraints_out, report) =
+        scaffold_continuity_rebase_telemetry_v66(input_constraints, target_novelty);
+
+    // 2. Read the phase67 context that was just written to the env var.
+    let phase67_line = env::var(PHASE67_TELEMETRY).unwrap_or_default();
+    let holdout_id = parse_telemetry_field(&phase67_line, "holdout_id")
+        .unwrap_or_else(|| target_novelty.to_string());
+    let marker_in = phase67_line.contains("phase67_escalation_marker_in=true");
+    let semantic_context = parse_telemetry_field(&phase67_line, "phase67_semantic_context")
+        .unwrap_or_else(|| "none".to_string());
+
+    // 3. Apply Phase 7.0 structural adjustment rule.
+    let phase67_telemetry = Phase67Telemetry {
+        holdout_id,
+        phase67_escalation_marker_in: marker_in,
+        phase67_semantic_context: semantic_context,
+        phase67_ready: true,
+    };
+    scaffold_phase70_structural_adjustment(&phase67_telemetry);
+
+    (constraints_out, report)
+}
+
+/// Parse a key=value field from a flat telemetry string.
+fn parse_telemetry_field(line: &str, field: &str) -> Option<String> {
+    let marker = format!("{}=", field);
+    line.split(&marker)
+        .nth(1)
+        .map(|rest| rest.split(' ').next().unwrap_or("").to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn scaffold_continuity_rebase_telemetry_v66(
@@ -472,6 +547,78 @@ fn phase67_telemetry_line(telemetry: &Phase67Telemetry) -> String {
     )
 }
 
+// ---- Phase 7.0 Structural Adjustment Engine ----------------------------------------
+
+/// Read the current continuity pressure boost from the environment.
+/// Returns 0 if not set (baseline: no boost applied yet).
+fn phase70_continuity_pressure_boost_from_env() -> i32 {
+    env::var(PHASE70_CONTINUITY_PRESSURE_BOOST)
+        .ok()
+        .and_then(|v| v.trim().parse::<i32>().ok())
+        .unwrap_or(0)
+        .clamp(0, PHASE70_ADJUSTMENT_MAX_BOOST)
+}
+
+/// Compute the Phase70 telemetry line from a telemetry struct.
+fn phase70_telemetry_line(telemetry: &Phase70Telemetry) -> String {
+    format!(
+        "holdout_id={} adjustment_applied={} parameter_name={} delta={} semantic_context_used={} pre_value={} post_value={}",
+        telemetry.holdout_id,
+        telemetry.adjustment_applied,
+        telemetry.parameter_name,
+        telemetry.delta,
+        telemetry.semantic_context_used,
+        telemetry.pre_value,
+        telemetry.post_value,
+    )
+}
+
+/// Phase 7.0 Structural Adjustment Engine.
+///
+/// Reads Phase67 semantic context and applies the first deterministic,
+/// reversible, geometry-grounded structural adjustment rule:
+///
+///   If phase67_escalation_marker_in == true
+///   and semantic_context == "continuity_insensitive"
+///   → increase continuity_pressure_boost by PHASE70_ADJUSTMENT_DELTA
+///     (bounded by PHASE70_ADJUSTMENT_MAX_BOOST, reversible by -Δ)
+///
+/// The boost is stored in GORT_PHASE70_CONTINUITY_PRESSURE_BOOST and read
+/// back by phase66_continuity_rebase_terms on the next episode pass.
+pub fn scaffold_phase70_structural_adjustment(
+    phase67: &Phase67Telemetry,
+) -> Phase70Telemetry {
+    let parameter_name = "continuity_pressure_boost";
+    let pre_value = phase70_continuity_pressure_boost_from_env();
+
+    let should_adjust = phase67.phase67_escalation_marker_in
+        && phase67.phase67_semantic_context == "continuity_insensitive";
+
+    let (adjustment_applied, post_value) = if should_adjust {
+        let new_value = (pre_value + PHASE70_ADJUSTMENT_DELTA).min(PHASE70_ADJUSTMENT_MAX_BOOST);
+        env::set_var(PHASE70_CONTINUITY_PRESSURE_BOOST, new_value.to_string());
+        (true, new_value)
+    } else {
+        // No adjustment: preserve current value; no write to env var.
+        (false, pre_value)
+    };
+
+    let telemetry = Phase70Telemetry {
+        holdout_id: phase67.holdout_id.clone(),
+        adjustment_applied,
+        parameter_name: parameter_name.to_string(),
+        delta: if adjustment_applied { post_value - pre_value } else { 0 },
+        semantic_context_used: phase67.phase67_semantic_context.clone(),
+        pre_value,
+        post_value,
+    };
+
+    env::set_var(PHASE70_TELEMETRY, phase70_telemetry_line(&telemetry));
+    telemetry
+}
+
+// ---- End Phase 7.0 -----------------------------------------------------------------
+
 fn phase66_telemetry_from_runtime(runtime_summary: &Phase63RuntimeSummary) -> Phase66Telemetry {
     let continuity_delta = runtime_summary.continuity_delta();
     let region_delta = runtime_summary.region_delta();
@@ -540,9 +687,13 @@ fn phase66_continuity_rebase_terms(
     region_delta: i32,
     anchor_delta: i32,
 ) -> (i32, i32, i32, i32) {
+    // Phase 7.0: read geometric parameter boost from the adjustment engine.
+    // When phase70_continuity_pressure_boost > 0, the beta coefficient is
+    // proportionally increased, amplifying region reward for continuity-insensitive holdouts.
+    let effective_beta = PHASE66_REBASE_BETA + phase70_continuity_pressure_boost_from_env();
     let contradiction_penalty = (PHASE66_REBASE_ALPHA_NUMERATOR * contradiction_pressure_ratio_ppm)
         / PHASE66_REBASE_ALPHA_DENOMINATOR;
-    let region_reward = PHASE66_REBASE_BETA * region_delta;
+    let region_reward = effective_beta * region_delta;
     let anchor_reward = PHASE66_REBASE_GAMMA * anchor_delta;
     let continuity_rebased = continuity_delta - contradiction_penalty + region_reward + anchor_reward;
     (

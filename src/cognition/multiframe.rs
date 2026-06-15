@@ -1317,6 +1317,9 @@ fn phase62_env_kind(name: &str) -> Option<Phase62ExperimentKind> {
             "phase66" | "continuity_rebase" | "continuity_window" | "v6" => {
                 Some(Phase62ExperimentKind::ContinuityRebaseTelemetryV6)
             }
+            "phase70" | "structural_adjustment" | "self_modify" | "v7" => {
+                Some(Phase62ExperimentKind::Phase70StructuralAdjustment)
+            }
             _ => None,
         }
     })
