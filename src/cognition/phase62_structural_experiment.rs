@@ -4785,15 +4785,15 @@ mod tests {
         assert_eq!(snapshots.len(), 2);
 
         assert_eq!(snapshots[0].parameters.len(), 2);
-        assert_eq!(snapshots[0].parameters[0].parameter_name, "zeta_pressure");
-        assert_eq!(snapshots[0].parameters[0].effective_value, 0);
-        assert_eq!(snapshots[0].parameters[1].parameter_name, "alpha_pressure");
-        assert_eq!(snapshots[0].parameters[1].effective_value, 1);
+        assert_eq!(snapshots[0].parameters[0].parameter_name, "alpha_pressure");
+        assert_eq!(snapshots[0].parameters[0].effective_value, 1);
+        assert_eq!(snapshots[0].parameters[1].parameter_name, "zeta_pressure");
+        assert_eq!(snapshots[0].parameters[1].effective_value, 0);
 
         assert_eq!(snapshots[1].parameters.len(), 2);
-        assert_eq!(snapshots[1].parameters[0].parameter_name, "zeta_pressure");
+        assert_eq!(snapshots[1].parameters[0].parameter_name, "alpha_pressure");
         assert_eq!(snapshots[1].parameters[0].effective_value, 1);
-        assert_eq!(snapshots[1].parameters[1].parameter_name, "alpha_pressure");
+        assert_eq!(snapshots[1].parameters[1].parameter_name, "zeta_pressure");
         assert_eq!(snapshots[1].parameters[1].effective_value, 1);
     }
 
