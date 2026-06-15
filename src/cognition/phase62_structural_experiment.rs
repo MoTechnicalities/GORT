@@ -53,6 +53,7 @@ const PHASE66_TELEMETRY: &str = "GORT_PHASE66_TELEMETRY";
 const PHASE67_TELEMETRY: &str = "GORT_PHASE67_TELEMETRY";
 const PHASE70_TELEMETRY: &str = "GORT_PHASE70_TELEMETRY";
 const PHASE70_ADJUSTMENT_LOG: &str = "GORT_PHASE70_ADJUSTMENT_LOG";
+const PHASE80_FRAME_TELEMETRY: &str = "GORT_PHASE80_FRAME_TELEMETRY";
 const PHASE70_CONTINUITY_PRESSURE_BOOST: &str = "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST";
 const PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST: &str = "continuity_pressure_boost";
 const PHASE70_ADJUSTMENT_DELTA: i32 = 1;
@@ -312,6 +313,17 @@ pub struct Phase80FrameParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Phase80FrameLocalParameterRegistry {
     pub frames: Vec<Phase80FrameParameterSnapshot>,
+}
+
+/// Deterministic transition event between frame-local parameter states.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80FrameTransitionEvent {
+    pub from_frame_id: String,
+    pub to_frame_id: String,
+    pub entry_allowed: bool,
+    pub exit_allowed: bool,
+    pub continuity_preserved: bool,
+    pub transition_reason: String,
 }
 
 /// Canonical structural-parameter descriptor for Phase 7.x.
@@ -640,6 +652,113 @@ pub fn phase80_validate_frame_continuity_invariants(
     }
 
     Ok(())
+}
+
+fn phase80_frame_jump_is_continuity_preserving(
+    from: &Phase80FrameParameterSnapshot,
+    to: &Phase80FrameParameterSnapshot,
+    parameter_registry: &Phase70StructuralParameterRegistry,
+) -> bool {
+    for parameter in &to.parameters {
+        let Some(spec) = parameter_registry.get(&parameter.parameter_name) else {
+            return false;
+        };
+
+        let from_value = from
+            .parameters
+            .iter()
+            .find(|candidate| candidate.parameter_name == parameter.parameter_name)
+            .map(|candidate| candidate.effective_value)
+            .unwrap_or(spec.min_value);
+
+        let jump = (parameter.effective_value - from_value).abs();
+        if jump > spec.delta.abs() {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Build deterministic frame transition events from canonical frame-local registry.
+pub fn phase80_scaffold_frame_transitions(
+    registry: &Phase80FrameLocalParameterRegistry,
+    parameter_registry: &Phase70StructuralParameterRegistry,
+) -> Result<Vec<Phase80FrameTransitionEvent>, String> {
+    phase80_validate_frame_continuity_invariants(registry, parameter_registry)?;
+
+    let mut transitions = Vec::with_capacity(registry.frames.len());
+
+    for (index, frame) in registry.frames.iter().enumerate() {
+        let from_frame_id = if index == 0 {
+            "phase80_origin".to_string()
+        } else {
+            registry.frames[index - 1].frame_id.clone()
+        };
+
+        let entry_allowed = if index == 0 {
+            true
+        } else {
+            phase80_frame_jump_is_continuity_preserving(
+                &registry.frames[index - 1],
+                frame,
+                parameter_registry,
+            )
+        };
+
+        let exit_allowed = if index + 1 < registry.frames.len() {
+            phase80_frame_jump_is_continuity_preserving(
+                frame,
+                &registry.frames[index + 1],
+                parameter_registry,
+            )
+        } else {
+            true
+        };
+
+        let continuity_preserved = entry_allowed && exit_allowed;
+        let transition_reason = match (entry_allowed, exit_allowed) {
+            (true, true) => "bounded_continuity".to_string(),
+            (false, _) => "entry_continuity_violation".to_string(),
+            (true, false) => "exit_continuity_violation".to_string(),
+        };
+
+        transitions.push(Phase80FrameTransitionEvent {
+            from_frame_id,
+            to_frame_id: frame.frame_id.clone(),
+            entry_allowed,
+            exit_allowed,
+            continuity_preserved,
+            transition_reason,
+        });
+    }
+
+    Ok(transitions)
+}
+
+fn phase80_frame_transition_line(transition: &Phase80FrameTransitionEvent) -> String {
+    format!(
+        "from_frame_id={} to_frame_id={} entry_allowed={} exit_allowed={} continuity_preserved={} transition_reason={}",
+        transition.from_frame_id,
+        transition.to_frame_id,
+        transition.entry_allowed,
+        transition.exit_allowed,
+        transition.continuity_preserved,
+        transition.transition_reason,
+    )
+}
+
+/// Emit canonical frame-level transition telemetry in deterministic order.
+pub fn phase80_emit_frame_transition_telemetry(
+    transitions: &[Phase80FrameTransitionEvent],
+) -> String {
+    let line = transitions
+        .iter()
+        .map(phase80_frame_transition_line)
+        .collect::<Vec<_>>()
+        .join("|");
+    env::set_var(PHASE80_FRAME_TELEMETRY, &line);
+    line
 }
 
 fn phase70_apply_parameter_step(
@@ -4660,6 +4779,83 @@ mod tests {
         assert!(check_a.is_ok());
         assert_eq!(check_a, check_b);
         assert_eq!(registry_a, registry_b);
+    }
+
+    #[test]
+    fn phase80_frame_transitions_are_replay_stable() {
+        let parameter_registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 1,
+                    post_value: 2,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+
+        let frame_registry = phase80_build_frame_local_parameter_registry(&log, &parameter_registry)
+            .expect("frame-local registry should build");
+
+        let transitions_a = phase80_scaffold_frame_transitions(&frame_registry, &parameter_registry)
+            .expect("frame transitions should scaffold");
+        let transitions_b = phase80_scaffold_frame_transitions(&frame_registry, &parameter_registry)
+            .expect("frame transitions should scaffold");
+
+        let telemetry_a = phase80_emit_frame_transition_telemetry(&transitions_a);
+        let telemetry_b = phase80_emit_frame_transition_telemetry(&transitions_b);
+
+        assert_eq!(transitions_a, transitions_b);
+        assert_eq!(telemetry_a, telemetry_b);
+        assert_eq!(transitions_a[0].from_frame_id, "phase80_origin");
+        assert_eq!(transitions_a[0].to_frame_id, "phase80_frame_0001");
+        assert_eq!(transitions_a[0].transition_reason, "bounded_continuity");
+    }
+
+    #[test]
+    fn phase80_frame_transition_rules_enforce_exit_continuity() {
+        let parameter_registry = Phase70StructuralParameterRegistry::canonical();
+        let frame_registry = Phase80FrameLocalParameterRegistry {
+            frames: vec![
+                Phase80FrameParameterSnapshot {
+                    frame_id: "phase80_frame_0001".to_string(),
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameters: vec![Phase80FrameParameterValue {
+                        parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                        effective_value: 0,
+                    }],
+                },
+                Phase80FrameParameterSnapshot {
+                    frame_id: "phase80_frame_0002".to_string(),
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameters: vec![Phase80FrameParameterValue {
+                        parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                        effective_value: 2,
+                    }],
+                },
+            ],
+        };
+
+        let err = phase80_scaffold_frame_transitions(&frame_registry, &parameter_registry)
+            .expect_err("jumping by more than one step should violate continuity invariants");
+        assert!(err.contains("continuity jump exceeded"));
     }
 }
 
