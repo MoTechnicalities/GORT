@@ -555,9 +555,11 @@ pub fn phase80_scaffold_frame_parameter_snapshots(
         overrides.insert(entry.parameter_name.clone(), entry.post_value);
         effective_state = phase80_merge_parameter_overrides(&effective_state, &overrides);
 
-        let parameters = registry
-            .parameters
-            .iter()
+        let mut ordered_parameters = registry.parameters.iter().collect::<Vec<_>>();
+        ordered_parameters.sort_by(|a, b| a.name.cmp(&b.name));
+
+        let parameters = ordered_parameters
+            .into_iter()
             .map(|parameter| Phase80FrameParameterValue {
                 parameter_name: parameter.name.clone(),
                 effective_value: *effective_state.get(&parameter.name).unwrap_or(&parameter.min_value),
