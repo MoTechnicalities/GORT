@@ -11,6 +11,7 @@ use gort::{
     phase90_form_geometry_seed_from_integration_hook, phase90_emit_seed_formation_telemetry,
     phase90_form_continuity_weighted_field_from_seed, phase90_emit_field_telemetry,
     phase90_compose_emergent_cognitive_shape, phase90_emit_shape_telemetry,
+    phase90_form_cognitive_manifold, phase90_emit_manifold_telemetry,
 };
 
 const PARAM: &str = "continuity_pressure_boost";
@@ -811,5 +812,201 @@ fn gauntlet_phase9_slice3_shape_telemetry_is_canonical_and_replay_stable() {
     assert!(telemetry_a.contains("archetype="));
     assert!(telemetry_a.contains("aggregate_strength="));
     assert!(telemetry_a.contains("continuity_envelope="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+// ============ Phase 9 Slice 4: Cognitive Manifolds / Topology Graphs ============
+
+#[test]
+fn gauntlet_phase9_slice4_manifold_forms_from_shapes() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+
+    let log_a1 = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_a1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_a2", "none", true, 1, 2, 1),
+        ],
+    };
+    let log_a2 = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_a3", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_a4", "none", false, 1, 1, 0),
+            entry(3, "holdout_p9s4_a5", "none", true, 1, 2, 1),
+        ],
+    };
+    let log_b1 = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_b1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_b2", "none", true, 1, 2, 1),
+        ],
+    };
+    let log_b2 = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_b3", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_b4", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let shape_a = {
+        let trace_a1 = phase80_run_multiframe_episode("gauntlet_p9s4_shape_a1", &log_a1, &registry)
+            .expect("trace a1");
+        let deltas_a1 = phase80_integrate_cross_frame_structural_deltas(&trace_a1, &log_a1, &registry)
+            .expect("deltas a1");
+        let summary_a1 = phase80_summarize_episode_structural_integration(&trace_a1, &log_a1, &registry)
+            .expect("summary a1");
+        let hook_a1 = phase80_build_phase9_integration_hook(&summary_a1, &deltas_a1);
+        let seed_a1 = phase90_form_geometry_seed_from_integration_hook(&hook_a1, &summary_a1, &deltas_a1);
+        let field_a1 = phase90_form_continuity_weighted_field_from_seed(&seed_a1);
+
+        let trace_a2 = phase80_run_multiframe_episode("gauntlet_p9s4_shape_a2", &log_a2, &registry)
+            .expect("trace a2");
+        let deltas_a2 = phase80_integrate_cross_frame_structural_deltas(&trace_a2, &log_a2, &registry)
+            .expect("deltas a2");
+        let summary_a2 = phase80_summarize_episode_structural_integration(&trace_a2, &log_a2, &registry)
+            .expect("summary a2");
+        let hook_a2 = phase80_build_phase9_integration_hook(&summary_a2, &deltas_a2);
+        let seed_a2 = phase90_form_geometry_seed_from_integration_hook(&hook_a2, &summary_a2, &deltas_a2);
+        let field_a2 = phase90_form_continuity_weighted_field_from_seed(&seed_a2);
+
+        phase90_compose_emergent_cognitive_shape(&[field_a1, field_a2]).expect("shape a")
+    };
+
+    let shape_b = {
+        let trace_b1 = phase80_run_multiframe_episode("gauntlet_p9s4_shape_b1", &log_b1, &registry)
+            .expect("trace b1");
+        let deltas_b1 = phase80_integrate_cross_frame_structural_deltas(&trace_b1, &log_b1, &registry)
+            .expect("deltas b1");
+        let summary_b1 = phase80_summarize_episode_structural_integration(&trace_b1, &log_b1, &registry)
+            .expect("summary b1");
+        let hook_b1 = phase80_build_phase9_integration_hook(&summary_b1, &deltas_b1);
+        let seed_b1 = phase90_form_geometry_seed_from_integration_hook(&hook_b1, &summary_b1, &deltas_b1);
+        let field_b1 = phase90_form_continuity_weighted_field_from_seed(&seed_b1);
+
+        let trace_b2 = phase80_run_multiframe_episode("gauntlet_p9s4_shape_b2", &log_b2, &registry)
+            .expect("trace b2");
+        let deltas_b2 = phase80_integrate_cross_frame_structural_deltas(&trace_b2, &log_b2, &registry)
+            .expect("deltas b2");
+        let summary_b2 = phase80_summarize_episode_structural_integration(&trace_b2, &log_b2, &registry)
+            .expect("summary b2");
+        let hook_b2 = phase80_build_phase9_integration_hook(&summary_b2, &deltas_b2);
+        let seed_b2 = phase90_form_geometry_seed_from_integration_hook(&hook_b2, &summary_b2, &deltas_b2);
+        let field_b2 = phase90_form_continuity_weighted_field_from_seed(&seed_b2);
+
+        phase90_compose_emergent_cognitive_shape(&[field_b1, field_b2]).expect("shape b")
+    };
+
+    let manifold = phase90_form_cognitive_manifold(&[shape_a, shape_b]).expect("manifold");
+
+    assert_eq!(manifold.shape_count, 2);
+    assert!(manifold.manifold_well_formed);
+    assert!(!manifold.manifold_signature.is_empty());
+    assert!(!manifold.adjacency_edges.is_empty());
+}
+
+#[test]
+fn gauntlet_phase9_slice4_manifold_is_deterministic_over_100_replays() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log_left = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_c1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_c2", "none", true, 1, 2, 1),
+        ],
+    };
+    let log_right = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_d1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_d2", "none", false, 1, 1, 0),
+            entry(3, "holdout_p9s4_d3", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let mut manifold_hashes = Vec::new();
+
+    for _ in 0..100 {
+        let trace_left = phase80_run_multiframe_episode("gauntlet_p9s4_det_left", &log_left, &registry)
+            .expect("trace left");
+        let deltas_left = phase80_integrate_cross_frame_structural_deltas(&trace_left, &log_left, &registry)
+            .expect("deltas left");
+        let summary_left = phase80_summarize_episode_structural_integration(&trace_left, &log_left, &registry)
+            .expect("summary left");
+        let hook_left = phase80_build_phase9_integration_hook(&summary_left, &deltas_left);
+        let seed_left = phase90_form_geometry_seed_from_integration_hook(&hook_left, &summary_left, &deltas_left);
+        let field_left = phase90_form_continuity_weighted_field_from_seed(&seed_left);
+        let shape_left = phase90_compose_emergent_cognitive_shape(&[field_left]).expect("shape left");
+
+        let trace_right = phase80_run_multiframe_episode("gauntlet_p9s4_det_right", &log_right, &registry)
+            .expect("trace right");
+        let deltas_right = phase80_integrate_cross_frame_structural_deltas(&trace_right, &log_right, &registry)
+            .expect("deltas right");
+        let summary_right = phase80_summarize_episode_structural_integration(&trace_right, &log_right, &registry)
+            .expect("summary right");
+        let hook_right = phase80_build_phase9_integration_hook(&summary_right, &deltas_right);
+        let seed_right = phase90_form_geometry_seed_from_integration_hook(&hook_right, &summary_right, &deltas_right);
+        let field_right = phase90_form_continuity_weighted_field_from_seed(&seed_right);
+        let shape_right = phase90_compose_emergent_cognitive_shape(&[field_right]).expect("shape right");
+
+        let manifold = phase90_form_cognitive_manifold(&[shape_left, shape_right]).expect("manifold");
+        manifold_hashes.push(manifold.manifold_profile_hash);
+    }
+
+    let first_hash = &manifold_hashes[0];
+    for (index, hash) in manifold_hashes.iter().enumerate() {
+        assert_eq!(
+            hash, first_hash,
+            "manifold profile hash must be identical at replay {}: {} vs {}",
+            index + 1,
+            hash,
+            first_hash
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase9_slice4_manifold_telemetry_is_canonical_and_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log_left = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_e1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_e2", "none", true, 1, 2, 1),
+        ],
+    };
+    let log_right = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9s4_f1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9s4_f2", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let trace_left = phase80_run_multiframe_episode("gauntlet_p9s4_telem_left", &log_left, &registry)
+        .expect("trace left");
+    let deltas_left = phase80_integrate_cross_frame_structural_deltas(&trace_left, &log_left, &registry)
+        .expect("deltas left");
+    let summary_left = phase80_summarize_episode_structural_integration(&trace_left, &log_left, &registry)
+        .expect("summary left");
+    let hook_left = phase80_build_phase9_integration_hook(&summary_left, &deltas_left);
+    let seed_left = phase90_form_geometry_seed_from_integration_hook(&hook_left, &summary_left, &deltas_left);
+    let field_left = phase90_form_continuity_weighted_field_from_seed(&seed_left);
+    let shape_left = phase90_compose_emergent_cognitive_shape(&[field_left]).expect("shape left");
+
+    let trace_right = phase80_run_multiframe_episode("gauntlet_p9s4_telem_right", &log_right, &registry)
+        .expect("trace right");
+    let deltas_right = phase80_integrate_cross_frame_structural_deltas(&trace_right, &log_right, &registry)
+        .expect("deltas right");
+    let summary_right = phase80_summarize_episode_structural_integration(&trace_right, &log_right, &registry)
+        .expect("summary right");
+    let hook_right = phase80_build_phase9_integration_hook(&summary_right, &deltas_right);
+    let seed_right = phase90_form_geometry_seed_from_integration_hook(&hook_right, &summary_right, &deltas_right);
+    let field_right = phase90_form_continuity_weighted_field_from_seed(&seed_right);
+    let shape_right = phase90_compose_emergent_cognitive_shape(&[field_right]).expect("shape right");
+
+    let manifold = phase90_form_cognitive_manifold(&[shape_left, shape_right]).expect("manifold");
+    let telemetry_a = phase90_emit_manifold_telemetry(&manifold);
+    let telemetry_b = phase90_emit_manifold_telemetry(&manifold);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("shape_span="));
+    assert!(telemetry_a.contains("shape_count=2"));
+    assert!(telemetry_a.contains("edge_count="));
+    assert!(telemetry_a.contains("embedding="));
     assert!(telemetry_a.contains("well_formed=true"));
 }

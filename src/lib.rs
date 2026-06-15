@@ -49,6 +49,7 @@ pub mod cognition {
     pub mod phase90_geometric_cognitive_seed;
     pub mod phase90_continuity_weighted_fields;
     pub mod phase90_emergent_cognitive_shapes;
+    pub mod phase90_cognitive_manifolds;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -132,6 +133,12 @@ pub mod cognition {
         Phase90EmergentCognitiveShape,
         phase90_compose_emergent_cognitive_shape,
         phase90_emit_shape_telemetry,
+    };
+    pub use phase90_cognitive_manifolds::{
+        Phase90CognitiveManifold,
+        Phase90ShapeAdjacencyEdge,
+        phase90_form_cognitive_manifold,
+        phase90_emit_manifold_telemetry,
     };
 }
 
@@ -253,6 +260,10 @@ pub use cognition::{
     Phase90EmergentCognitiveShape,
     phase90_compose_emergent_cognitive_shape,
     phase90_emit_shape_telemetry,
+    Phase90CognitiveManifold,
+    Phase90ShapeAdjacencyEdge,
+    phase90_form_cognitive_manifold,
+    phase90_emit_manifold_telemetry,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,
