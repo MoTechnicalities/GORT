@@ -258,6 +258,21 @@ pub struct Phase70AdjustmentLog {
     pub entries: Vec<Phase70AdjustmentLogEntry>,
 }
 
+/// Explicit semantic-to-structural mapping rule for Phase 7.x.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70SemanticMappingRule {
+    pub semantic_context: String,
+    pub parameter_name: String,
+    pub requires_escalation_marker_in: bool,
+    pub apply_delta: bool,
+}
+
+/// Ordered canonical mapping table for semantic context -> structural adjustment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase70SemanticMappingTable {
+    pub rules: Vec<Phase70SemanticMappingRule>,
+}
+
 /// Canonical structural-parameter descriptor for Phase 7.x.
 /// The registry is deterministic and defines bounded, reversible adjustments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,6 +309,98 @@ impl Phase70StructuralParameterRegistry {
     fn get(&self, name: &str) -> Option<&Phase70StructuralParameterSpec> {
         self.parameters.iter().find(|parameter| parameter.name == name)
     }
+}
+
+impl Phase70SemanticMappingTable {
+    /// Canonical deterministic mapping table for Phase 7.x.
+    pub fn canonical() -> Self {
+        // Keep lexical order of semantic_context for deterministic lookup behavior.
+        Self {
+            rules: vec![
+                Phase70SemanticMappingRule {
+                    semantic_context: "continuity_insensitive".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    requires_escalation_marker_in: true,
+                    apply_delta: true,
+                },
+                Phase70SemanticMappingRule {
+                    semantic_context: "none".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    requires_escalation_marker_in: false,
+                    apply_delta: false,
+                },
+            ],
+        }
+    }
+
+    fn resolve(&self, phase67: &Phase67Telemetry, parameter_name: &str) -> Option<&Phase70SemanticMappingRule> {
+        self.rules.iter().find(|rule| {
+            rule.parameter_name == parameter_name
+                && rule.semantic_context == phase67.phase67_semantic_context
+                && (!rule.requires_escalation_marker_in || phase67.phase67_escalation_marker_in)
+        })
+    }
+}
+
+/// Validates structural adjustment log invariants against the parameter registry.
+///
+/// Invariants checked:
+/// - No runaway adjustments: post_value stays within registry bounds
+/// - No oscillation in current Phase 7.x policy: delta must be non-negative and step-bounded
+/// - No geometric drift in log encoding: post_value == pre_value + delta, inverse_delta == -delta when applied
+pub fn phase70_validate_adjustment_log_invariants(
+    log: &Phase70AdjustmentLog,
+    registry: &Phase70StructuralParameterRegistry,
+) -> Result<(), String> {
+    for entry in &log.entries {
+        let Some(spec) = registry.get(&entry.parameter_name) else {
+            return Err(format!("unknown parameter in adjustment log: {}", entry.parameter_name));
+        };
+
+        if entry.post_value < spec.min_value || entry.post_value > spec.max_value {
+            return Err(format!(
+                "runaway adjustment out of bounds for {} at sequence {}",
+                entry.parameter_name, entry.sequence
+            ));
+        }
+
+        if entry.delta < 0 {
+            return Err(format!(
+                "oscillation detected: negative delta for {} at sequence {}",
+                entry.parameter_name, entry.sequence
+            ));
+        }
+
+        if entry.delta.abs() > spec.delta.abs() {
+            return Err(format!(
+                "step magnitude exceeded for {} at sequence {}",
+                entry.parameter_name, entry.sequence
+            ));
+        }
+
+        if entry.post_value != entry.pre_value + entry.delta {
+            return Err(format!(
+                "geometric drift in log encoding for {} at sequence {}",
+                entry.parameter_name, entry.sequence
+            ));
+        }
+
+        if entry.adjustment_applied {
+            if entry.inverse_delta != -entry.delta {
+                return Err(format!(
+                    "inverse mismatch for {} at sequence {}",
+                    entry.parameter_name, entry.sequence
+                ));
+            }
+        } else if entry.inverse_delta != 0 {
+            return Err(format!(
+                "unexpected inverse delta for non-applied adjustment {} at sequence {}",
+                entry.parameter_name, entry.sequence
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 fn phase70_apply_parameter_step(
@@ -756,14 +863,17 @@ pub fn scaffold_phase70_structural_adjustment(
     phase67: &Phase67Telemetry,
 ) -> Phase70Telemetry {
     let registry = Phase70StructuralParameterRegistry::canonical();
+    let mapping = Phase70SemanticMappingTable::canonical();
     let parameter = registry
         .get(PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST)
         .expect("phase70 canonical registry must define continuity pressure boost");
 
     let pre_value = phase70_continuity_pressure_boost_from_env();
 
-    let should_adjust = phase67.phase67_escalation_marker_in
-        && phase67.phase67_semantic_context == "continuity_insensitive";
+    let should_adjust = mapping
+        .resolve(phase67, parameter.name.as_str())
+        .map(|rule| rule.apply_delta)
+        .unwrap_or(false);
 
     let (adjustment_applied, post_value, delta) = if should_adjust {
         let (new_value, applied_delta) = phase70_apply_parameter_step(parameter, pre_value, true);
@@ -3947,6 +4057,89 @@ mod tests {
             Some(value) => env::set_var(PHASE70_TELEMETRY, value),
             None => env::remove_var(PHASE70_TELEMETRY),
         }
+    }
+
+    #[test]
+    fn phase70_semantic_mapping_table_resolves_expected_rules() {
+        let mapping = Phase70SemanticMappingTable::canonical();
+
+        let continuity = Phase67Telemetry {
+            holdout_id: "holdout_04_recovery".to_string(),
+            phase67_escalation_marker_in: true,
+            phase67_semantic_context: "continuity_insensitive".to_string(),
+            phase67_ready: true,
+        };
+        let none = Phase67Telemetry {
+            holdout_id: "holdout_04_recovery".to_string(),
+            phase67_escalation_marker_in: false,
+            phase67_semantic_context: "none".to_string(),
+            phase67_ready: true,
+        };
+
+        let continuity_rule = mapping
+            .resolve(&continuity, PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST)
+            .expect("continuity_insensitive rule must resolve");
+        assert!(continuity_rule.apply_delta);
+
+        let none_rule = mapping
+            .resolve(&none, PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST)
+            .expect("none rule must resolve");
+        assert!(!none_rule.apply_delta);
+    }
+
+    #[test]
+    fn phase70_adjustment_log_invariants_pass_for_valid_log() {
+        let registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_04_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_05_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: false,
+                    pre_value: 1,
+                    post_value: 1,
+                    delta: 0,
+                    inverse_delta: 0,
+                },
+            ],
+        };
+
+        assert!(phase70_validate_adjustment_log_invariants(&log, &registry).is_ok());
+    }
+
+    #[test]
+    fn phase70_adjustment_log_invariants_reject_negative_delta_oscillation() {
+        let registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![Phase70AdjustmentLogEntry {
+                sequence: 1,
+                holdout_id: "holdout_04_recovery".to_string(),
+                parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                semantic_context_used: "continuity_insensitive".to_string(),
+                adjustment_applied: true,
+                pre_value: 1,
+                post_value: 0,
+                delta: -1,
+                inverse_delta: 1,
+            }],
+        };
+
+        let err = phase70_validate_adjustment_log_invariants(&log, &registry)
+            .expect_err("negative delta should be rejected as oscillation");
+        assert!(err.contains("oscillation"));
     }
 }
 

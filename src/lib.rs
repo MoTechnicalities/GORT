@@ -88,8 +88,10 @@ pub mod cognition {
         Phase62V3Branch, Phase63Kind, Phase63RegionRole, Phase63RepairOperator,
         Phase63RepairPlan, Phase63RepairTarget, Phase63RuntimeSummary, Phase63Telemetry,
         Phase70AdjustmentLog, Phase70AdjustmentLogEntry, Phase70AdjustmentParameter,
+        Phase70SemanticMappingRule, Phase70SemanticMappingTable,
         Phase70StructuralParameterRegistry,
         Phase70StructuralParameterSpec, Phase70Telemetry,
+        phase70_validate_adjustment_log_invariants,
         scaffold_phase70_structural_adjustment,
     };
 }
@@ -170,9 +172,12 @@ pub use cognition::{
     Phase70AdjustmentLog,
     Phase70AdjustmentLogEntry,
     Phase70AdjustmentParameter,
+    Phase70SemanticMappingRule,
+    Phase70SemanticMappingTable,
     Phase70StructuralParameterRegistry,
     Phase70StructuralParameterSpec,
     Phase70Telemetry,
+    phase70_validate_adjustment_log_invariants,
     scaffold_phase70_structural_adjustment,
     apply_phase62_structural_experiment,
     GoalAttractor,
