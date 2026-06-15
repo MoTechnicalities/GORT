@@ -48,6 +48,7 @@ pub mod cognition {
     pub mod phase62_structural_experiment;
     pub mod phase90_geometric_cognitive_seed;
     pub mod phase90_continuity_weighted_fields;
+    pub mod phase90_emergent_cognitive_shapes;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -126,6 +127,11 @@ pub mod cognition {
         Phase90ContinuityWeightedGeometryField,
         phase90_form_continuity_weighted_field_from_seed,
         phase90_emit_field_telemetry,
+    };
+    pub use phase90_emergent_cognitive_shapes::{
+        Phase90EmergentCognitiveShape,
+        phase90_compose_emergent_cognitive_shape,
+        phase90_emit_shape_telemetry,
     };
 }
 
@@ -244,6 +250,9 @@ pub use cognition::{
     Phase90ContinuityWeightedGeometryField,
     phase90_form_continuity_weighted_field_from_seed,
     phase90_emit_field_telemetry,
+    Phase90EmergentCognitiveShape,
+    phase90_compose_emergent_cognitive_shape,
+    phase90_emit_shape_telemetry,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,
