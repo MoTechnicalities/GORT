@@ -1,5 +1,7 @@
 # GORT: Geometric Operator-Regulated Thought
 
+![GORT Hero Image](./GORT-hero.png)
+
 **The first deterministic geometric reasoning engine.**
 
 GORT is a formal, independent Rust implementation of a semantic compilation stack grounded in geometric invariants. It sits between the **UGC geometric representational layer** and **CPU hardware execution** — the missing middle of deterministic AI.
