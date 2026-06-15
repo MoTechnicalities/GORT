@@ -50,6 +50,8 @@ pub mod cognition {
     pub mod phase90_continuity_weighted_fields;
     pub mod phase90_emergent_cognitive_shapes;
     pub mod phase90_cognitive_manifolds;
+    pub mod phase90_multishape_interaction_dynamics;
+    pub mod phase90_geometry_driven_adjustment_operators;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -139,6 +141,18 @@ pub mod cognition {
         Phase90ShapeAdjacencyEdge,
         phase90_form_cognitive_manifold,
         phase90_emit_manifold_telemetry,
+    };
+    pub use phase90_multishape_interaction_dynamics::{
+        Phase90MultiShapeInteractionDynamics,
+        Phase90ShapeInteractionEvent,
+        phase90_compute_multishape_interaction_dynamics,
+        phase90_emit_interaction_dynamics_telemetry,
+    };
+    pub use phase90_geometry_driven_adjustment_operators::{
+        Phase90GeometryDrivenAdjustmentOperator,
+        Phase90GeometryDrivenAdjustmentPlan,
+        phase90_build_geometry_driven_adjustment_plan,
+        phase90_emit_geometry_operator_telemetry,
     };
 }
 
@@ -264,6 +278,14 @@ pub use cognition::{
     Phase90ShapeAdjacencyEdge,
     phase90_form_cognitive_manifold,
     phase90_emit_manifold_telemetry,
+    Phase90MultiShapeInteractionDynamics,
+    Phase90ShapeInteractionEvent,
+    phase90_compute_multishape_interaction_dynamics,
+    phase90_emit_interaction_dynamics_telemetry,
+    Phase90GeometryDrivenAdjustmentOperator,
+    Phase90GeometryDrivenAdjustmentPlan,
+    phase90_build_geometry_driven_adjustment_plan,
+    phase90_emit_geometry_operator_telemetry,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,

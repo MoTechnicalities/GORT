@@ -12,6 +12,8 @@ use gort::{
     phase90_form_continuity_weighted_field_from_seed, phase90_emit_field_telemetry,
     phase90_compose_emergent_cognitive_shape, phase90_emit_shape_telemetry,
     phase90_form_cognitive_manifold, phase90_emit_manifold_telemetry,
+    phase90_compute_multishape_interaction_dynamics, phase90_emit_interaction_dynamics_telemetry,
+    phase90_build_geometry_driven_adjustment_plan, phase90_emit_geometry_operator_telemetry,
 };
 
 const PARAM: &str = "continuity_pressure_boost";
@@ -36,6 +38,62 @@ fn entry(
         delta,
         inverse_delta: if adjustment_applied { -delta } else { 0 },
     }
+}
+
+fn phase90_field_fixture(
+    episode_id: &str,
+    log: &Phase70AdjustmentLog,
+    registry: &Phase70StructuralParameterRegistry,
+) -> gort::Phase90ContinuityWeightedGeometryField {
+    let trace = phase80_run_multiframe_episode(episode_id, log, registry).expect("trace");
+    let deltas =
+        phase80_integrate_cross_frame_structural_deltas(&trace, log, registry).expect("deltas");
+    let summary =
+        phase80_summarize_episode_structural_integration(&trace, log, registry).expect("summary");
+    let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+    let seed = phase90_form_geometry_seed_from_integration_hook(&hook, &summary, &deltas);
+    phase90_form_continuity_weighted_field_from_seed(&seed)
+}
+
+fn phase90_shape_fixture(
+    shape_prefix: &str,
+    logs: &[Phase70AdjustmentLog],
+    registry: &Phase70StructuralParameterRegistry,
+) -> gort::Phase90EmergentCognitiveShape {
+    let fields = logs
+        .iter()
+        .enumerate()
+        .map(|(index, log)| phase90_field_fixture(&format!("{}_{}", shape_prefix, index + 1), log, registry))
+        .collect::<Vec<_>>();
+    phase90_compose_emergent_cognitive_shape(&fields).expect("shape")
+}
+
+fn phase90_manifold_fixture(
+    manifold_prefix: &str,
+    shape_log_groups: &[Vec<Phase70AdjustmentLog>],
+    registry: &Phase70StructuralParameterRegistry,
+) -> gort::Phase90CognitiveManifold {
+    let shapes = shape_log_groups
+        .iter()
+        .enumerate()
+        .map(|(index, logs)| phase90_shape_fixture(&format!("{}_shape{}", manifold_prefix, index + 1), logs, registry))
+        .collect::<Vec<_>>();
+    phase90_form_cognitive_manifold(&shapes).expect("manifold")
+}
+
+fn phase90_plan_fixture(
+    manifold_prefix: &str,
+    shape_log_groups: &[Vec<Phase70AdjustmentLog>],
+    registry: &Phase70StructuralParameterRegistry,
+) -> (
+    gort::Phase90CognitiveManifold,
+    gort::Phase90MultiShapeInteractionDynamics,
+    gort::Phase90GeometryDrivenAdjustmentPlan,
+) {
+    let manifold = phase90_manifold_fixture(manifold_prefix, shape_log_groups, registry);
+    let dynamics = phase90_compute_multishape_interaction_dynamics(&manifold).expect("dynamics");
+    let plan = phase90_build_geometry_driven_adjustment_plan(&manifold, &dynamics).expect("plan");
+    (manifold, dynamics, plan)
 }
 
 #[test]
@@ -1009,4 +1067,439 @@ fn gauntlet_phase9_slice4_manifold_telemetry_is_canonical_and_replay_stable() {
     assert!(telemetry_a.contains("edge_count="));
     assert!(telemetry_a.contains("embedding="));
     assert!(telemetry_a.contains("well_formed=true"));
+}
+
+// ============ Phase 9 Slice 5: Multi-Shape Interaction Dynamics ============
+
+#[test]
+fn gauntlet_phase9_slice5_dynamics_form_from_manifold() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let manifold = phase90_manifold_fixture(
+        "gauntlet_p9s5",
+        &[
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s5_a1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s5_a2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s5_a3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s5_a4", "none", false, 1, 1, 0),
+                        entry(3, "p9s5_a5", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s5_b1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s5_b2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s5_b3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s5_b4", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+        ],
+        &registry,
+    );
+
+    let dynamics = phase90_compute_multishape_interaction_dynamics(&manifold).expect("dynamics");
+
+    assert!(dynamics.dynamics_well_formed);
+    assert!(dynamics.interaction_count > 0);
+    assert!(!dynamics.dynamics_signature.is_empty());
+}
+
+#[test]
+fn gauntlet_phase9_slice5_dynamics_are_deterministic_over_100_replays() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let mut hashes = Vec::new();
+
+    for _ in 0..100 {
+        let manifold = phase90_manifold_fixture(
+            "gauntlet_p9s5_replay",
+            &[
+                vec![Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s5_r1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s5_r2", "none", true, 1, 2, 1),
+                    ],
+                }],
+                vec![Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s5_r3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s5_r4", "none", true, 1, 2, 1),
+                    ],
+                }],
+            ],
+            &registry,
+        );
+        let dynamics = phase90_compute_multishape_interaction_dynamics(&manifold).expect("dynamics");
+        hashes.push(dynamics.dynamics_profile_hash);
+    }
+
+    let first_hash = &hashes[0];
+    for (index, hash) in hashes.iter().enumerate() {
+        assert_eq!(
+            hash, first_hash,
+            "dynamics profile hash must be identical at replay {}: {} vs {}",
+            index + 1,
+            hash,
+            first_hash
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase9_slice5_dynamics_telemetry_is_canonical_and_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let manifold = phase90_manifold_fixture(
+        "gauntlet_p9s5_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9s5_t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9s5_t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9s5_t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9s5_t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let dynamics = phase90_compute_multishape_interaction_dynamics(&manifold).expect("dynamics");
+    let telemetry_a = phase90_emit_interaction_dynamics_telemetry(&dynamics);
+    let telemetry_b = phase90_emit_interaction_dynamics_telemetry(&dynamics);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("interaction_count="));
+    assert!(telemetry_a.contains("dominant_mode="));
+    assert!(telemetry_a.contains("aggregate_pressure="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+// ============ Phase 9 Slice 6: Geometry-Driven Adjustment Operators ============
+
+#[test]
+fn gauntlet_phase9_slice6_operator_plan_forms_from_dynamics() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p9s6",
+        &[
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s6_a1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s6_a2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s6_a3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s6_a4", "none", false, 1, 1, 0),
+                        entry(3, "p9s6_a5", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s6_b1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s6_b2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s6_b3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s6_b4", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+        ],
+        &registry,
+    );
+
+    assert!(plan.operator_plan_well_formed);
+    assert!(plan.operator_count > 0);
+    assert!(!plan.operator_plan_signature.is_empty());
+}
+
+#[test]
+fn gauntlet_phase9_slice6_operator_plan_is_deterministic_over_100_replays() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let mut hashes = Vec::new();
+
+    for _ in 0..100 {
+        let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+            "gauntlet_p9s6_replay",
+            &[
+                vec![Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s6_r1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s6_r2", "none", true, 1, 2, 1),
+                    ],
+                }],
+                vec![Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9s6_r3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9s6_r4", "none", true, 1, 2, 1),
+                    ],
+                }],
+            ],
+            &registry,
+        );
+        hashes.push(plan.operator_plan_hash);
+    }
+
+    let first_hash = &hashes[0];
+    for (index, hash) in hashes.iter().enumerate() {
+        assert_eq!(
+            hash, first_hash,
+            "operator plan hash must be identical at replay {}: {} vs {}",
+            index + 1,
+            hash,
+            first_hash
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase9_slice6_operator_telemetry_is_canonical_and_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p9s6_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9s6_t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9s6_t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9s6_t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9s6_t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let telemetry_a = phase90_emit_geometry_operator_telemetry(&plan);
+    let telemetry_b = phase90_emit_geometry_operator_telemetry(&plan);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("operator_count="));
+    assert!(telemetry_a.contains("dominant_kind="));
+    assert!(telemetry_a.contains("aggregate_pressure="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+// ============ Phase 9 Slice 7: Acceptance Gates ============
+
+#[test]
+fn gauntlet_phase9_gate_a_full_geometry_stack_is_well_formed_end_to_end() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (manifold, dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p9_gate_a",
+        &[
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9ga1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9ga2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9ga3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9ga4", "none", false, 1, 1, 0),
+                        entry(3, "p9ga5", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9ga6", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9ga7", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9ga8", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9ga9", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+        ],
+        &registry,
+    );
+
+    assert!(manifold.manifold_well_formed);
+    assert!(dynamics.dynamics_well_formed);
+    assert!(plan.operator_plan_well_formed);
+}
+
+#[test]
+fn gauntlet_phase9_gate_b_signature_mismatch_is_rejected_for_operator_synthesis() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (manifold, mut dynamics, _plan) = phase90_plan_fixture(
+        "gauntlet_p9_gate_b",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9gb1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9gb2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9gb3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9gb4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    dynamics.manifold_signature.push_str("::mismatch");
+    let err = phase90_build_geometry_driven_adjustment_plan(&manifold, &dynamics)
+        .expect_err("signature mismatch must be rejected");
+    assert!(err.contains("signature mismatch"));
+}
+
+#[test]
+fn gauntlet_phase9_gate_c_low_edge_manifold_reduces_interaction_and_operator_pressure() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_strong_manifold, strong_dynamics, strong_plan) = phase90_plan_fixture(
+        "gauntlet_p9_gate_c_strong",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9gc1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9gc2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p9gc3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p9gc4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let weak_manifold = phase90_manifold_fixture(
+        "gauntlet_p9_gate_c_weak",
+        &[vec![Phase70AdjustmentLog {
+            entries: vec![entry(1, "p9gc5", "none", false, 0, 0, 0)],
+        }]],
+        &registry,
+    );
+
+    let weak_dynamics = phase90_compute_multishape_interaction_dynamics(&weak_manifold)
+        .expect_err("weak manifold without edges must be rejected");
+
+    assert!(strong_dynamics.aggregate_operator_pressure_percent > 0);
+    assert!(strong_plan.aggregate_adjustment_pressure_percent > 0);
+    assert!(weak_dynamics.contains("without manifold edges"));
+}
+
+#[test]
+fn gauntlet_phase9_gate_d_full_phase9_telemetry_chain_is_replay_stable_over_50_runs() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let baseline = phase90_plan_fixture(
+        "gauntlet_p9_gate_d",
+        &[
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9gd1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9gd2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9gd3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9gd4", "none", false, 1, 1, 0),
+                        entry(3, "p9gd5", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9gd6", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9gd7", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p9gd8", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p9gd9", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+        ],
+        &registry,
+    );
+    let baseline_manifold_telemetry = phase90_emit_manifold_telemetry(&baseline.0);
+    let baseline_dynamics_telemetry = phase90_emit_interaction_dynamics_telemetry(&baseline.1);
+    let baseline_operator_telemetry = phase90_emit_geometry_operator_telemetry(&baseline.2);
+
+    for _ in 0..50 {
+        let current = phase90_plan_fixture(
+            "gauntlet_p9_gate_d",
+            &[
+                vec![
+                    Phase70AdjustmentLog {
+                        entries: vec![
+                            entry(1, "p9gd1", "continuity_insensitive", true, 0, 1, 1),
+                            entry(2, "p9gd2", "none", true, 1, 2, 1),
+                        ],
+                    },
+                    Phase70AdjustmentLog {
+                        entries: vec![
+                            entry(1, "p9gd3", "continuity_insensitive", true, 0, 1, 1),
+                            entry(2, "p9gd4", "none", false, 1, 1, 0),
+                            entry(3, "p9gd5", "none", true, 1, 2, 1),
+                        ],
+                    },
+                ],
+                vec![
+                    Phase70AdjustmentLog {
+                        entries: vec![
+                            entry(1, "p9gd6", "continuity_insensitive", true, 0, 1, 1),
+                            entry(2, "p9gd7", "none", true, 1, 2, 1),
+                        ],
+                    },
+                    Phase70AdjustmentLog {
+                        entries: vec![
+                            entry(1, "p9gd8", "continuity_insensitive", true, 0, 1, 1),
+                            entry(2, "p9gd9", "none", true, 1, 2, 1),
+                        ],
+                    },
+                ],
+            ],
+            &registry,
+        );
+
+        assert_eq!(phase90_emit_manifold_telemetry(&current.0), baseline_manifold_telemetry);
+        assert_eq!(phase90_emit_interaction_dynamics_telemetry(&current.1), baseline_dynamics_telemetry);
+        assert_eq!(phase90_emit_geometry_operator_telemetry(&current.2), baseline_operator_telemetry);
+    }
 }
