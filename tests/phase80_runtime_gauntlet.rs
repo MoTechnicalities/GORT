@@ -3,6 +3,8 @@ use gort::{
     Phase80FrameLocalParameterRegistry, Phase80FrameParameterSnapshot, Phase80FrameParameterValue,
     Phase80FrameTransitionEvent, phase80_build_frame_local_parameter_registry,
     phase80_emit_episode_telemetry, phase80_emit_frame_transition_telemetry,
+    phase80_emit_integration_telemetry, phase80_integrate_cross_frame_structural_deltas,
+    phase80_build_phase9_integration_hook, phase80_summarize_episode_structural_integration,
     phase80_run_multiframe_episode, phase80_scaffold_frame_parameter_snapshots,
     phase80_scaffold_frame_transitions, phase80_sequence_frame_transitions,
     phase80_validate_frame_continuity_invariants,
@@ -293,4 +295,45 @@ fn gauntlet_episode_boundary_accept_reject_and_identity_preservation() {
         phase80_emit_episode_telemetry(&clean_before),
         phase80_emit_episode_telemetry(&clean_after)
     );
+}
+
+#[test]
+fn gauntlet_slice5_integration_summary_and_phase9_hook_are_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_slice5_a", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_slice5_b", "none", false, 1, 1, 0),
+            entry(3, "holdout_slice5_c", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let trace_a =
+        phase80_run_multiframe_episode("gauntlet_slice5", &log, &registry).expect("episode A");
+    let trace_b =
+        phase80_run_multiframe_episode("gauntlet_slice5", &log, &registry).expect("episode B");
+
+    let summary_a = phase80_summarize_episode_structural_integration(&trace_a, &log, &registry)
+        .expect("summary A");
+    let summary_b = phase80_summarize_episode_structural_integration(&trace_b, &log, &registry)
+        .expect("summary B");
+
+    let deltas_a = phase80_integrate_cross_frame_structural_deltas(&trace_a, &log, &registry)
+        .expect("deltas A");
+    let deltas_b = phase80_integrate_cross_frame_structural_deltas(&trace_b, &log, &registry)
+        .expect("deltas B");
+
+    let hook_a = phase80_build_phase9_integration_hook(&summary_a, &deltas_a);
+    let hook_b = phase80_build_phase9_integration_hook(&summary_b, &deltas_b);
+
+    let telemetry_a = phase80_emit_integration_telemetry(&summary_a, &hook_a);
+    let telemetry_b = phase80_emit_integration_telemetry(&summary_b, &hook_b);
+
+    assert_eq!(summary_a, summary_b);
+    assert_eq!(deltas_a, deltas_b);
+    assert_eq!(hook_a, hook_b);
+    assert_eq!(telemetry_a, telemetry_b);
+    assert_eq!(summary_a.total_raw_structural_delta, 2);
+    assert_eq!(summary_a.total_continuity_adjusted_delta, 2);
+    assert!(hook_a.integration_ready);
 }

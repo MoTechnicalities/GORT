@@ -55,6 +55,7 @@ const PHASE70_TELEMETRY: &str = "GORT_PHASE70_TELEMETRY";
 const PHASE70_ADJUSTMENT_LOG: &str = "GORT_PHASE70_ADJUSTMENT_LOG";
 const PHASE80_FRAME_TELEMETRY: &str = "GORT_PHASE80_FRAME_TELEMETRY";
 const PHASE80_EPISODE_TELEMETRY: &str = "GORT_PHASE80_EPISODE_TELEMETRY";
+const PHASE80_INTEGRATION_TELEMETRY: &str = "GORT_PHASE80_INTEGRATION_TELEMETRY";
 const PHASE70_CONTINUITY_PRESSURE_BOOST: &str = "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST";
 const PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST: &str = "continuity_pressure_boost";
 const PHASE70_ADJUSTMENT_DELTA: i32 = 1;
@@ -345,6 +346,43 @@ pub struct Phase80EpisodeTrace {
     pub steps: Vec<Phase80EpisodeStep>,
     pub frame_count: usize,
     pub boundary_continuity_preserved: bool,
+}
+
+/// Phase 8 Slice 5: deterministic cross-frame structural delta record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80CrossFrameStructuralDelta {
+    pub step_index: usize,
+    pub from_frame_id: String,
+    pub to_frame_id: String,
+    pub holdout_id: String,
+    pub parameter_name: String,
+    pub raw_structural_delta: i32,
+    pub continuity_adjusted_delta: i32,
+    pub propagated_semantic_context: String,
+    pub continuity_preserved: bool,
+}
+
+/// Phase 8 Slice 5: episode-level structural summary over cross-frame integration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80EpisodeStructuralSummary {
+    pub episode_id: String,
+    pub frame_count: usize,
+    pub transition_count: usize,
+    pub total_raw_structural_delta: i32,
+    pub total_continuity_adjusted_delta: i32,
+    pub continuity_preserved: bool,
+    pub propagated_semantic_contexts: Vec<String>,
+}
+
+/// Phase 8 -> Phase 9 integration hook carrying deterministic geometry seed material.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80Phase9IntegrationHook {
+    pub episode_id: String,
+    pub geometry_seed_signature: String,
+    pub continuity_weight_percent: u8,
+    pub cross_frame_delta_count: usize,
+    pub total_continuity_adjusted_delta: i32,
+    pub integration_ready: bool,
 }
 
 /// Canonical structural-parameter descriptor for Phase 7.x.
@@ -908,6 +946,182 @@ pub fn phase80_emit_episode_telemetry(trace: &Phase80EpisodeTrace) -> String {
     );
 
     env::set_var(PHASE80_EPISODE_TELEMETRY, &line);
+    line
+}
+
+fn phase80_propagate_semantic_contexts(log: &Phase70AdjustmentLog) -> Vec<String> {
+    let mut propagated = Vec::with_capacity(log.entries.len());
+    let mut active_context = "none".to_string();
+
+    for entry in &log.entries {
+        if entry.semantic_context_used != "none" {
+            active_context = entry.semantic_context_used.clone();
+        }
+        propagated.push(active_context.clone());
+    }
+
+    propagated
+}
+
+/// Phase 8 Slice 5: integrate deterministic structural meaning across frames.
+pub fn phase80_integrate_cross_frame_structural_deltas(
+    trace: &Phase80EpisodeTrace,
+    log: &Phase70AdjustmentLog,
+    parameter_registry: &Phase70StructuralParameterRegistry,
+) -> Result<Vec<Phase80CrossFrameStructuralDelta>, String> {
+    phase70_validate_adjustment_log_invariants(log, parameter_registry)?;
+
+    if trace.steps.len() != log.entries.len() {
+        return Err(format!(
+            "episode/log cardinality mismatch: {} steps for {} entries",
+            trace.steps.len(),
+            log.entries.len()
+        ));
+    }
+
+    let propagated_contexts = phase80_propagate_semantic_contexts(log);
+    let mut deltas = Vec::with_capacity(trace.steps.len());
+
+    for (index, step) in trace.steps.iter().enumerate() {
+        let entry = &log.entries[index];
+        let expected_to_frame = format!("phase80_frame_{:04}", entry.sequence);
+        if step.to_frame_id != expected_to_frame {
+            return Err(format!(
+                "episode/log frame mismatch at step {}: expected {} got {}",
+                index + 1,
+                expected_to_frame,
+                step.to_frame_id
+            ));
+        }
+
+        let raw_structural_delta = entry.delta;
+        let continuity_adjusted_delta = if step.continuity_preserved {
+            raw_structural_delta
+        } else {
+            0
+        };
+
+        deltas.push(Phase80CrossFrameStructuralDelta {
+            step_index: step.step_index,
+            from_frame_id: step.from_frame_id.clone(),
+            to_frame_id: step.to_frame_id.clone(),
+            holdout_id: step.holdout_id.clone(),
+            parameter_name: entry.parameter_name.clone(),
+            raw_structural_delta,
+            continuity_adjusted_delta,
+            propagated_semantic_context: propagated_contexts[index].clone(),
+            continuity_preserved: step.continuity_preserved,
+        });
+    }
+
+    Ok(deltas)
+}
+
+/// Phase 8 Slice 5: summarize integrated structural meaning at the episode level.
+pub fn phase80_summarize_episode_structural_integration(
+    trace: &Phase80EpisodeTrace,
+    log: &Phase70AdjustmentLog,
+    parameter_registry: &Phase70StructuralParameterRegistry,
+) -> Result<Phase80EpisodeStructuralSummary, String> {
+    let deltas = phase80_integrate_cross_frame_structural_deltas(trace, log, parameter_registry)?;
+
+    let total_raw_structural_delta = deltas
+        .iter()
+        .map(|delta| delta.raw_structural_delta)
+        .sum::<i32>();
+    let total_continuity_adjusted_delta = deltas
+        .iter()
+        .map(|delta| delta.continuity_adjusted_delta)
+        .sum::<i32>();
+
+    let mut seen_contexts = BTreeSet::new();
+    let mut propagated_semantic_contexts = Vec::new();
+    for delta in &deltas {
+        if seen_contexts.insert(delta.propagated_semantic_context.clone()) {
+            propagated_semantic_contexts.push(delta.propagated_semantic_context.clone());
+        }
+    }
+
+    let continuity_preserved = trace.boundary_continuity_preserved
+        && deltas.iter().all(|delta| delta.continuity_preserved);
+
+    Ok(Phase80EpisodeStructuralSummary {
+        episode_id: trace.episode_id.clone(),
+        frame_count: trace.frame_count,
+        transition_count: deltas.len(),
+        total_raw_structural_delta,
+        total_continuity_adjusted_delta,
+        continuity_preserved,
+        propagated_semantic_contexts,
+    })
+}
+
+/// Phase 8 Slice 5: deterministic bridge hook for Phase 9 emergent geometry.
+pub fn phase80_build_phase9_integration_hook(
+    summary: &Phase80EpisodeStructuralSummary,
+    deltas: &[Phase80CrossFrameStructuralDelta],
+) -> Phase80Phase9IntegrationHook {
+    let continuity_weight_percent = if summary.total_raw_structural_delta > 0 {
+        ((summary.total_continuity_adjusted_delta * 100) / summary.total_raw_structural_delta)
+            .clamp(0, 100) as u8
+    } else if summary.continuity_preserved {
+        100
+    } else {
+        0
+    };
+
+    let contexts = summary.propagated_semantic_contexts.join(",");
+    let delta_signature = deltas
+        .iter()
+        .map(|delta| {
+            format!(
+                "{}:{}:{}",
+                delta.to_frame_id, delta.parameter_name, delta.continuity_adjusted_delta
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+
+    let geometry_seed_signature = format!(
+        "episode={} frame_count={} continuity_weight={} contexts={} deltas={}",
+        summary.episode_id,
+        summary.frame_count,
+        continuity_weight_percent,
+        contexts,
+        delta_signature,
+    );
+
+    let integration_ready = summary.continuity_preserved && !deltas.is_empty();
+
+    Phase80Phase9IntegrationHook {
+        episode_id: summary.episode_id.clone(),
+        geometry_seed_signature,
+        continuity_weight_percent,
+        cross_frame_delta_count: deltas.len(),
+        total_continuity_adjusted_delta: summary.total_continuity_adjusted_delta,
+        integration_ready,
+    }
+}
+
+/// Emit canonical telemetry line for Phase 8 Slice 5 integration outputs.
+pub fn phase80_emit_integration_telemetry(
+    summary: &Phase80EpisodeStructuralSummary,
+    hook: &Phase80Phase9IntegrationHook,
+) -> String {
+    let contexts = summary.propagated_semantic_contexts.join(",");
+    let line = format!(
+        "episode_id={} frame_count={} transition_count={} continuity_preserved={} total_raw_delta={} total_adjusted_delta={} contexts={} phase9_seed={} integration_ready={}",
+        summary.episode_id,
+        summary.frame_count,
+        summary.transition_count,
+        summary.continuity_preserved,
+        summary.total_raw_structural_delta,
+        summary.total_continuity_adjusted_delta,
+        contexts,
+        hook.geometry_seed_signature,
+        hook.integration_ready,
+    );
+    env::set_var(PHASE80_INTEGRATION_TELEMETRY, &line);
     line
 }
 
@@ -5092,6 +5306,136 @@ mod tests {
         let err = phase80_sequence_frame_transitions(&frame_registry, &bad_transitions)
             .expect_err("sequence should reject non-chain source");
         assert!(err.contains("transition source mismatch"));
+    }
+
+    #[test]
+    fn phase80_slice5_cross_frame_deltas_propagate_semantics_and_adjust_by_continuity() {
+        let parameter_registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: false,
+                    pre_value: 0,
+                    post_value: 0,
+                    delta: 0,
+                    inverse_delta: 0,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 3,
+                    holdout_id: "holdout_03_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 1,
+                    post_value: 2,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+
+        let mut trace =
+            phase80_run_multiframe_episode("slice5_semantic", &log, &parameter_registry)
+                .expect("episode should run");
+        trace.steps[2].continuity_preserved = false;
+
+        let deltas = phase80_integrate_cross_frame_structural_deltas(&trace, &log, &parameter_registry)
+            .expect("cross-frame deltas should integrate");
+
+        assert_eq!(deltas.len(), 3);
+        assert_eq!(deltas[0].propagated_semantic_context, "none");
+        assert_eq!(deltas[1].propagated_semantic_context, "continuity_insensitive");
+        assert_eq!(deltas[2].propagated_semantic_context, "continuity_insensitive");
+        assert_eq!(deltas[2].raw_structural_delta, 1);
+        assert_eq!(deltas[2].continuity_adjusted_delta, 0);
+    }
+
+    #[test]
+    fn phase80_slice5_episode_summary_and_phase9_hook_are_replay_stable() {
+        let parameter_registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: false,
+                    pre_value: 1,
+                    post_value: 1,
+                    delta: 0,
+                    inverse_delta: 0,
+                },
+            ],
+        };
+
+        let trace_a =
+            phase80_run_multiframe_episode("slice5_summary", &log, &parameter_registry)
+                .expect("episode should run");
+        let trace_b =
+            phase80_run_multiframe_episode("slice5_summary", &log, &parameter_registry)
+                .expect("episode should run");
+
+        let summary_a = phase80_summarize_episode_structural_integration(
+            &trace_a,
+            &log,
+            &parameter_registry,
+        )
+        .expect("summary should build");
+        let summary_b = phase80_summarize_episode_structural_integration(
+            &trace_b,
+            &log,
+            &parameter_registry,
+        )
+        .expect("summary should build");
+
+        let deltas = phase80_integrate_cross_frame_structural_deltas(
+            &trace_a,
+            &log,
+            &parameter_registry,
+        )
+        .expect("deltas should build");
+        let hook_a = phase80_build_phase9_integration_hook(&summary_a, &deltas);
+        let hook_b = phase80_build_phase9_integration_hook(&summary_b, &deltas);
+        let telemetry_a = phase80_emit_integration_telemetry(&summary_a, &hook_a);
+        let telemetry_b = phase80_emit_integration_telemetry(&summary_b, &hook_b);
+
+        assert_eq!(summary_a, summary_b);
+        assert_eq!(hook_a, hook_b);
+        assert_eq!(telemetry_a, telemetry_b);
+        assert_eq!(summary_a.total_raw_structural_delta, 1);
+        assert_eq!(summary_a.total_continuity_adjusted_delta, 1);
+        assert_eq!(summary_a.propagated_semantic_contexts, vec!["continuity_insensitive"]);
+        assert!(hook_a.integration_ready);
+        assert!(hook_a
+            .geometry_seed_signature
+            .contains("episode=slice5_summary"));
     }
 }
 
