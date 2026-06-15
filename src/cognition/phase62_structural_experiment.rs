@@ -273,6 +273,26 @@ pub struct Phase70SemanticMappingTable {
     pub rules: Vec<Phase70SemanticMappingRule>,
 }
 
+/// Per-frame structural context derived from deterministic adjustment history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80FrameStructuralContext {
+    pub frame_id: String,
+    pub holdout_id: String,
+    pub parameter_name: String,
+    pub local_adjustment_applied: bool,
+    pub local_delta: i32,
+    pub continuity_delta_from_previous_frame: i32,
+    pub parameter_value_post: i32,
+}
+
+/// Phase 8 precursor: deterministic multi-frame structural context scaffold.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80MultiFrameStructuralContext {
+    pub frames: Vec<Phase80FrameStructuralContext>,
+    pub total_local_delta: i32,
+    pub cross_frame_continuity_preserved: bool,
+}
+
 /// Canonical structural-parameter descriptor for Phase 7.x.
 /// The registry is deterministic and defines bounded, reversible adjustments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -401,6 +421,47 @@ pub fn phase70_validate_adjustment_log_invariants(
     }
 
     Ok(())
+}
+
+/// Build deterministic frame-local structural contexts from the validated
+/// adjustment log as a precursor substrate for Phase 8.x multi-frame cognition.
+pub fn phase80_scaffold_multiframe_structural_context(
+    log: &Phase70AdjustmentLog,
+    registry: &Phase70StructuralParameterRegistry,
+) -> Result<Phase80MultiFrameStructuralContext, String> {
+    phase70_validate_adjustment_log_invariants(log, registry)?;
+
+    let mut frames = Vec::with_capacity(log.entries.len());
+    let mut previous_post: Option<i32> = None;
+    let mut total_local_delta = 0i32;
+
+    for entry in &log.entries {
+        let continuity_delta_from_previous_frame = match previous_post {
+            Some(prev) => entry.post_value - prev,
+            None => 0,
+        };
+
+        frames.push(Phase80FrameStructuralContext {
+            frame_id: format!("phase80_frame_{:04}", entry.sequence),
+            holdout_id: entry.holdout_id.clone(),
+            parameter_name: entry.parameter_name.clone(),
+            local_adjustment_applied: entry.adjustment_applied,
+            local_delta: entry.delta,
+            continuity_delta_from_previous_frame,
+            parameter_value_post: entry.post_value,
+        });
+
+        total_local_delta += entry.delta;
+        previous_post = Some(entry.post_value);
+    }
+
+    let cross_frame_continuity_preserved = frames.iter().all(|frame| frame.local_delta >= 0);
+
+    Ok(Phase80MultiFrameStructuralContext {
+        frames,
+        total_local_delta,
+        cross_frame_continuity_preserved,
+    })
 }
 
 fn phase70_apply_parameter_step(
@@ -4140,6 +4201,86 @@ mod tests {
         let err = phase70_validate_adjustment_log_invariants(&log, &registry)
             .expect_err("negative delta should be rejected as oscillation");
         assert!(err.contains("oscillation"));
+    }
+
+    #[test]
+    fn phase80_multiframe_context_scaffold_is_deterministic() {
+        let registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_04_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_05_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: false,
+                    pre_value: 1,
+                    post_value: 1,
+                    delta: 0,
+                    inverse_delta: 0,
+                },
+            ],
+        };
+
+        let ctx_a = phase80_scaffold_multiframe_structural_context(&log, &registry)
+            .expect("phase80 context should scaffold");
+        let ctx_b = phase80_scaffold_multiframe_structural_context(&log, &registry)
+            .expect("phase80 context should scaffold");
+
+        assert_eq!(ctx_a, ctx_b);
+        assert_eq!(ctx_a.frames.len(), 2);
+        assert_eq!(ctx_a.frames[0].frame_id, "phase80_frame_0001");
+        assert_eq!(ctx_a.frames[1].frame_id, "phase80_frame_0002");
+        assert!(ctx_a.cross_frame_continuity_preserved);
+    }
+
+    #[test]
+    fn phase80_multiframe_context_tracks_cross_frame_continuity_deltas() {
+        let registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 1,
+                    post_value: 2,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+
+        let ctx = phase80_scaffold_multiframe_structural_context(&log, &registry)
+            .expect("phase80 context should scaffold");
+
+        assert_eq!(ctx.total_local_delta, 2);
+        assert_eq!(ctx.frames[0].continuity_delta_from_previous_frame, 0);
+        assert_eq!(ctx.frames[1].continuity_delta_from_previous_frame, 1);
     }
 }
 
