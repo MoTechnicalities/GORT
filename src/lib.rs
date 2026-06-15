@@ -47,6 +47,7 @@ pub mod cognition {
     pub mod phase61_structural_recovery;
     pub mod phase62_structural_experiment;
     pub mod phase90_geometric_cognitive_seed;
+    pub mod phase90_continuity_weighted_fields;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -120,6 +121,11 @@ pub mod cognition {
         Phase90GeometricCognitiveSeed,
         phase90_form_geometry_seed_from_integration_hook,
         phase90_emit_seed_formation_telemetry,
+    };
+    pub use phase90_continuity_weighted_fields::{
+        Phase90ContinuityWeightedGeometryField,
+        phase90_form_continuity_weighted_field_from_seed,
+        phase90_emit_field_telemetry,
     };
 }
 
@@ -235,6 +241,9 @@ pub use cognition::{
     Phase90GeometricCognitiveSeed,
     phase90_form_geometry_seed_from_integration_hook,
     phase90_emit_seed_formation_telemetry,
+    Phase90ContinuityWeightedGeometryField,
+    phase90_form_continuity_weighted_field_from_seed,
+    phase90_emit_field_telemetry,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,
