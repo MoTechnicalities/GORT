@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     apply_phase62_structural_experiment, Phase62ExperimentKind, Phase62ExperimentPlan,
     Phase62StructuralConfig, SemanticConstraint,
 };
@@ -185,7 +185,7 @@ fn run_curriculum_harness_with_phase62_kind(kind: &str) -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()))
         .current_dir(manifest_dir)
-        .env("RUGC_PHASE62_KIND", kind)
+        .env("GORT_PHASE62_KIND", kind)
         .args(["run", "--quiet", "--example", "curriculum_harness"])
         .output()
         .expect("curriculum harness should launch with phase62 kind");
@@ -199,9 +199,9 @@ fn run_curriculum_harness_with_phase62_kind_and_handoff(kind: &str, handoff: boo
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()))
         .current_dir(manifest_dir)
-        .env("RUGC_PHASE62_KIND", kind)
+        .env("GORT_PHASE62_KIND", kind)
         .env(
-            "RUGC_PHASE63_ESCALATION_HANDOFF",
+            "GORT_PHASE63_ESCALATION_HANDOFF",
             if handoff { "true" } else { "false" },
         )
         .args(["run", "--quiet", "--example", "curriculum_harness"])

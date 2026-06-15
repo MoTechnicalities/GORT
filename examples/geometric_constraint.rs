@@ -6,7 +6,7 @@
 /// - Detecting conflicts between constraints
 /// - Maintaining audit trails for all operations
 
-use rugc::{ConstraintEvaluator, ConstraintSystem, InvariantViolation};
+use gort::{ConstraintEvaluator, ConstraintSystem, InvariantViolation};
 
 /// Example constraint: a semantic assertion with polarity
 #[derive(Clone, Debug)]
@@ -85,7 +85,7 @@ impl ConstraintEvaluator for SemanticAssertionEvaluator {
 }
 
 fn main() {
-    println!("=== RUGC Geometric Constraint Example ===\n");
+    println!("=== GORT Geometric Constraint Example ===\n");
 
     // Create a constraint system
     let mut system: ConstraintSystem<SemanticAssertion> = ConstraintSystem::new();

@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     arbitrate_intent_field, build_meta_intent_field, compute_cognitive_flow_field,
     compute_cognitive_potential_field, compute_cognitive_topology, compute_intent_field,
     MultiFrameCognition, MultiFrameConfig, SemanticConstraint,
@@ -349,84 +349,84 @@ struct Phase62EnvScope {
 
 impl Drop for Phase62EnvScope {
     fn drop(&mut self) {
-        restore_env_var("RUGC_PHASE62_ENABLE", self.prev_enable.take());
-        restore_env_var("RUGC_PHASE62_TARGET_NOVELTY", self.prev_target.take());
-        restore_env_var("RUGC_PHASE62_MAX_BRIDGE", self.prev_max_bridge.take());
-        restore_env_var("RUGC_PHASE62_BRIDGE_WEIGHT", self.prev_bridge_weight.take());
+        restore_env_var("GORT_PHASE62_ENABLE", self.prev_enable.take());
+        restore_env_var("GORT_PHASE62_TARGET_NOVELTY", self.prev_target.take());
+        restore_env_var("GORT_PHASE62_MAX_BRIDGE", self.prev_max_bridge.take());
+        restore_env_var("GORT_PHASE62_BRIDGE_WEIGHT", self.prev_bridge_weight.take());
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_CONTINUITY_BEFORE",
+            "GORT_PHASE62_RUNTIME_CONTINUITY_BEFORE",
             self.prev_runtime_continuity_before.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE",
+            "GORT_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE",
             self.prev_runtime_continuity_after_pre.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_REGIONS_BEFORE",
+            "GORT_PHASE62_RUNTIME_REGIONS_BEFORE",
             self.prev_runtime_regions_before.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_REGIONS_AFTER_PRE",
+            "GORT_PHASE62_RUNTIME_REGIONS_AFTER_PRE",
             self.prev_runtime_regions_after_pre.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_ANCHORS_BEFORE",
+            "GORT_PHASE62_RUNTIME_ANCHORS_BEFORE",
             self.prev_runtime_anchors_before.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_ANCHORS_AFTER_PRE",
+            "GORT_PHASE62_RUNTIME_ANCHORS_AFTER_PRE",
             self.prev_runtime_anchors_after_pre.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_EXTERNAL_BEFORE",
+            "GORT_PHASE62_RUNTIME_EXTERNAL_BEFORE",
             self.prev_runtime_external_before.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE",
+            "GORT_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE",
             self.prev_runtime_external_after_pre.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_SUPPORT_SIGNAL",
+            "GORT_PHASE62_RUNTIME_SUPPORT_SIGNAL",
             self.prev_runtime_support_signal.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_RUNTIME_CONTRADICTION_SIGNAL",
+            "GORT_PHASE62_RUNTIME_CONTRADICTION_SIGNAL",
             self.prev_runtime_contradiction_signal.take(),
         );
         restore_env_var(
-            "RUGC_PHASE62_V3B_BRANCH",
+            "GORT_PHASE62_V3B_BRANCH",
             self.prev_runtime_v3b_branch.take(),
         );
         restore_env_var(
-            "RUGC_PHASE63_PLAN",
+            "GORT_PHASE63_PLAN",
             self.prev_runtime_phase63_plan.take(),
         );
         restore_env_var(
-            "RUGC_PHASE63_TELEMETRY",
+            "GORT_PHASE63_TELEMETRY",
             self.prev_runtime_phase63_telemetry.take(),
         );
         restore_env_var(
-            "RUGC_PHASE63_REGIME",
+            "GORT_PHASE63_REGIME",
             self.prev_runtime_phase63_regime.take(),
         );
         restore_env_var(
-            "RUGC_PHASE63_CANONICAL_PLAN",
+            "GORT_PHASE63_CANONICAL_PLAN",
             self.prev_runtime_phase63_canonical_plan.take(),
         );
         restore_env_var(
-            "RUGC_PHASE63_CANONICAL_REGIME",
+            "GORT_PHASE63_CANONICAL_REGIME",
             self.prev_runtime_phase63_canonical_regime.take(),
         );
         restore_env_var(
-            "RUGC_PHASE63_CANONICAL_TARGET",
+            "GORT_PHASE63_CANONICAL_TARGET",
             self.prev_runtime_phase63_canonical_target.take(),
         );
         restore_env_var(
-            "RUGC_PHASE66_TELEMETRY",
+            "GORT_PHASE66_TELEMETRY",
             self.prev_runtime_phase66_telemetry.take(),
         );
         restore_env_var(
-            "RUGC_PHASE67_TELEMETRY",
+            "GORT_PHASE67_TELEMETRY",
             self.prev_runtime_phase67_telemetry.take(),
         );
     }
@@ -449,62 +449,62 @@ fn phase62_toggle_for_episode(spec: &EpisodeSpec) -> Phase62EpisodeToggle {
 
 fn configure_phase62_env_for_episode(spec: &EpisodeSpec, toggle: Phase62EpisodeToggle) -> Phase62EnvScope {
     let scope = Phase62EnvScope {
-        prev_enable: env::var("RUGC_PHASE62_ENABLE").ok(),
-        prev_target: env::var("RUGC_PHASE62_TARGET_NOVELTY").ok(),
-        prev_max_bridge: env::var("RUGC_PHASE62_MAX_BRIDGE").ok(),
-        prev_bridge_weight: env::var("RUGC_PHASE62_BRIDGE_WEIGHT").ok(),
-        prev_runtime_continuity_before: env::var("RUGC_PHASE62_RUNTIME_CONTINUITY_BEFORE").ok(),
-        prev_runtime_continuity_after_pre: env::var("RUGC_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE").ok(),
-        prev_runtime_regions_before: env::var("RUGC_PHASE62_RUNTIME_REGIONS_BEFORE").ok(),
-        prev_runtime_regions_after_pre: env::var("RUGC_PHASE62_RUNTIME_REGIONS_AFTER_PRE").ok(),
-        prev_runtime_anchors_before: env::var("RUGC_PHASE62_RUNTIME_ANCHORS_BEFORE").ok(),
-        prev_runtime_anchors_after_pre: env::var("RUGC_PHASE62_RUNTIME_ANCHORS_AFTER_PRE").ok(),
-        prev_runtime_external_before: env::var("RUGC_PHASE62_RUNTIME_EXTERNAL_BEFORE").ok(),
-        prev_runtime_external_after_pre: env::var("RUGC_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE").ok(),
-        prev_runtime_support_signal: env::var("RUGC_PHASE62_RUNTIME_SUPPORT_SIGNAL").ok(),
-        prev_runtime_contradiction_signal: env::var("RUGC_PHASE62_RUNTIME_CONTRADICTION_SIGNAL").ok(),
-        prev_runtime_v3b_branch: env::var("RUGC_PHASE62_V3B_BRANCH").ok(),
-        prev_runtime_phase63_plan: env::var("RUGC_PHASE63_PLAN").ok(),
-        prev_runtime_phase63_telemetry: env::var("RUGC_PHASE63_TELEMETRY").ok(),
-        prev_runtime_phase63_regime: env::var("RUGC_PHASE63_REGIME").ok(),
-        prev_runtime_phase63_canonical_plan: env::var("RUGC_PHASE63_CANONICAL_PLAN").ok(),
-        prev_runtime_phase63_canonical_regime: env::var("RUGC_PHASE63_CANONICAL_REGIME").ok(),
-        prev_runtime_phase63_canonical_target: env::var("RUGC_PHASE63_CANONICAL_TARGET").ok(),
-        prev_runtime_phase66_telemetry: env::var("RUGC_PHASE66_TELEMETRY").ok(),
-        prev_runtime_phase67_telemetry: env::var("RUGC_PHASE67_TELEMETRY").ok(),
+        prev_enable: env::var("GORT_PHASE62_ENABLE").ok(),
+        prev_target: env::var("GORT_PHASE62_TARGET_NOVELTY").ok(),
+        prev_max_bridge: env::var("GORT_PHASE62_MAX_BRIDGE").ok(),
+        prev_bridge_weight: env::var("GORT_PHASE62_BRIDGE_WEIGHT").ok(),
+        prev_runtime_continuity_before: env::var("GORT_PHASE62_RUNTIME_CONTINUITY_BEFORE").ok(),
+        prev_runtime_continuity_after_pre: env::var("GORT_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE").ok(),
+        prev_runtime_regions_before: env::var("GORT_PHASE62_RUNTIME_REGIONS_BEFORE").ok(),
+        prev_runtime_regions_after_pre: env::var("GORT_PHASE62_RUNTIME_REGIONS_AFTER_PRE").ok(),
+        prev_runtime_anchors_before: env::var("GORT_PHASE62_RUNTIME_ANCHORS_BEFORE").ok(),
+        prev_runtime_anchors_after_pre: env::var("GORT_PHASE62_RUNTIME_ANCHORS_AFTER_PRE").ok(),
+        prev_runtime_external_before: env::var("GORT_PHASE62_RUNTIME_EXTERNAL_BEFORE").ok(),
+        prev_runtime_external_after_pre: env::var("GORT_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE").ok(),
+        prev_runtime_support_signal: env::var("GORT_PHASE62_RUNTIME_SUPPORT_SIGNAL").ok(),
+        prev_runtime_contradiction_signal: env::var("GORT_PHASE62_RUNTIME_CONTRADICTION_SIGNAL").ok(),
+        prev_runtime_v3b_branch: env::var("GORT_PHASE62_V3B_BRANCH").ok(),
+        prev_runtime_phase63_plan: env::var("GORT_PHASE63_PLAN").ok(),
+        prev_runtime_phase63_telemetry: env::var("GORT_PHASE63_TELEMETRY").ok(),
+        prev_runtime_phase63_regime: env::var("GORT_PHASE63_REGIME").ok(),
+        prev_runtime_phase63_canonical_plan: env::var("GORT_PHASE63_CANONICAL_PLAN").ok(),
+        prev_runtime_phase63_canonical_regime: env::var("GORT_PHASE63_CANONICAL_REGIME").ok(),
+        prev_runtime_phase63_canonical_target: env::var("GORT_PHASE63_CANONICAL_TARGET").ok(),
+        prev_runtime_phase66_telemetry: env::var("GORT_PHASE66_TELEMETRY").ok(),
+        prev_runtime_phase67_telemetry: env::var("GORT_PHASE67_TELEMETRY").ok(),
     };
 
     if toggle.enabled {
-        env::set_var("RUGC_PHASE62_ENABLE", "1");
-        env::set_var("RUGC_PHASE62_TARGET_NOVELTY", spec.novelty_tag);
+        env::set_var("GORT_PHASE62_ENABLE", "1");
+        env::set_var("GORT_PHASE62_TARGET_NOVELTY", spec.novelty_tag);
         env::set_var(
-            "RUGC_PHASE62_MAX_BRIDGE",
+            "GORT_PHASE62_MAX_BRIDGE",
             toggle.max_bridge_constraints.to_string(),
         );
-        env::set_var("RUGC_PHASE62_BRIDGE_WEIGHT", toggle.bridge_weight.to_string());
-        env::remove_var("RUGC_PHASE62_V3B_BRANCH");
-        env::remove_var("RUGC_PHASE63_PLAN");
-        env::remove_var("RUGC_PHASE63_TELEMETRY");
-        env::remove_var("RUGC_PHASE63_REGIME");
-        env::remove_var("RUGC_PHASE63_CANONICAL_PLAN");
-        env::remove_var("RUGC_PHASE63_CANONICAL_REGIME");
-        env::remove_var("RUGC_PHASE63_CANONICAL_TARGET");
-        env::remove_var("RUGC_PHASE66_TELEMETRY");
-        env::remove_var("RUGC_PHASE67_TELEMETRY");
+        env::set_var("GORT_PHASE62_BRIDGE_WEIGHT", toggle.bridge_weight.to_string());
+        env::remove_var("GORT_PHASE62_V3B_BRANCH");
+        env::remove_var("GORT_PHASE63_PLAN");
+        env::remove_var("GORT_PHASE63_TELEMETRY");
+        env::remove_var("GORT_PHASE63_REGIME");
+        env::remove_var("GORT_PHASE63_CANONICAL_PLAN");
+        env::remove_var("GORT_PHASE63_CANONICAL_REGIME");
+        env::remove_var("GORT_PHASE63_CANONICAL_TARGET");
+        env::remove_var("GORT_PHASE66_TELEMETRY");
+        env::remove_var("GORT_PHASE67_TELEMETRY");
     } else {
-        env::set_var("RUGC_PHASE62_ENABLE", "0");
-        env::remove_var("RUGC_PHASE62_TARGET_NOVELTY");
-        env::remove_var("RUGC_PHASE62_MAX_BRIDGE");
-        env::remove_var("RUGC_PHASE62_BRIDGE_WEIGHT");
-        env::remove_var("RUGC_PHASE62_V3B_BRANCH");
-        env::remove_var("RUGC_PHASE63_PLAN");
-        env::remove_var("RUGC_PHASE63_TELEMETRY");
-        env::remove_var("RUGC_PHASE63_REGIME");
-        env::remove_var("RUGC_PHASE63_CANONICAL_PLAN");
-        env::remove_var("RUGC_PHASE63_CANONICAL_REGIME");
-        env::remove_var("RUGC_PHASE63_CANONICAL_TARGET");
-        env::remove_var("RUGC_PHASE66_TELEMETRY");
-        env::remove_var("RUGC_PHASE67_TELEMETRY");
+        env::set_var("GORT_PHASE62_ENABLE", "0");
+        env::remove_var("GORT_PHASE62_TARGET_NOVELTY");
+        env::remove_var("GORT_PHASE62_MAX_BRIDGE");
+        env::remove_var("GORT_PHASE62_BRIDGE_WEIGHT");
+        env::remove_var("GORT_PHASE62_V3B_BRANCH");
+        env::remove_var("GORT_PHASE63_PLAN");
+        env::remove_var("GORT_PHASE63_TELEMETRY");
+        env::remove_var("GORT_PHASE63_REGIME");
+        env::remove_var("GORT_PHASE63_CANONICAL_PLAN");
+        env::remove_var("GORT_PHASE63_CANONICAL_REGIME");
+        env::remove_var("GORT_PHASE63_CANONICAL_TARGET");
+        env::remove_var("GORT_PHASE66_TELEMETRY");
+        env::remove_var("GORT_PHASE67_TELEMETRY");
     }
 
     scope
@@ -516,43 +516,43 @@ fn set_phase62_runtime_summary(
     trained_recovery_pre: &EpisodeMetrics,
 ) {
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_CONTINUITY_BEFORE",
+        "GORT_PHASE62_RUNTIME_CONTINUITY_BEFORE",
         trained_holdout.self_continuity_score.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE",
+        "GORT_PHASE62_RUNTIME_CONTINUITY_AFTER_PRE",
         trained_recovery_pre.self_continuity_score.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_REGIONS_BEFORE",
+        "GORT_PHASE62_RUNTIME_REGIONS_BEFORE",
         trained_holdout.topology_regions.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_REGIONS_AFTER_PRE",
+        "GORT_PHASE62_RUNTIME_REGIONS_AFTER_PRE",
         trained_recovery_pre.topology_regions.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_ANCHORS_BEFORE",
+        "GORT_PHASE62_RUNTIME_ANCHORS_BEFORE",
         trained_holdout.active_anchors.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_ANCHORS_AFTER_PRE",
+        "GORT_PHASE62_RUNTIME_ANCHORS_AFTER_PRE",
         trained_recovery_pre.active_anchors.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_EXTERNAL_BEFORE",
+        "GORT_PHASE62_RUNTIME_EXTERNAL_BEFORE",
         trained_holdout.external_change_score.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE",
+        "GORT_PHASE62_RUNTIME_EXTERNAL_AFTER_PRE",
         trained_recovery_pre.external_change_score.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_SUPPORT_SIGNAL",
+        "GORT_PHASE62_RUNTIME_SUPPORT_SIGNAL",
         holdout_spec.support_strength.to_string(),
     );
     env::set_var(
-        "RUGC_PHASE62_RUNTIME_CONTRADICTION_SIGNAL",
+        "GORT_PHASE62_RUNTIME_CONTRADICTION_SIGNAL",
         holdout_spec.contradiction_strength.to_string(),
     );
 }
@@ -1901,34 +1901,34 @@ fn run_episode(
         arbitration_confidence: arbitrated.arbitration_confidence,
         self_consistency,
         meta_revision_count,
-        phase62_v3b_branch: env::var("RUGC_PHASE62_V3B_BRANCH")
+        phase62_v3b_branch: env::var("GORT_PHASE62_V3B_BRANCH")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_plan: env::var("RUGC_PHASE63_PLAN")
+        phase63_plan: env::var("GORT_PHASE63_PLAN")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_telemetry: env::var("RUGC_PHASE63_TELEMETRY")
+        phase63_telemetry: env::var("GORT_PHASE63_TELEMETRY")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_diagnostic: env::var("RUGC_PHASE63_DIAGNOSTIC")
+        phase63_diagnostic: env::var("GORT_PHASE63_DIAGNOSTIC")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_regime: env::var("RUGC_PHASE63_REGIME")
+        phase63_regime: env::var("GORT_PHASE63_REGIME")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_canonical_plan: env::var("RUGC_PHASE63_CANONICAL_PLAN")
+        phase63_canonical_plan: env::var("GORT_PHASE63_CANONICAL_PLAN")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_canonical_regime: env::var("RUGC_PHASE63_CANONICAL_REGIME")
+        phase63_canonical_regime: env::var("GORT_PHASE63_CANONICAL_REGIME")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase63_canonical_target: env::var("RUGC_PHASE63_CANONICAL_TARGET")
+        phase63_canonical_target: env::var("GORT_PHASE63_CANONICAL_TARGET")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase66_telemetry: env::var("RUGC_PHASE66_TELEMETRY")
+        phase66_telemetry: env::var("GORT_PHASE66_TELEMETRY")
             .ok()
             .filter(|v| !v.trim().is_empty()),
-        phase67_telemetry: env::var("RUGC_PHASE67_TELEMETRY")
+        phase67_telemetry: env::var("GORT_PHASE67_TELEMETRY")
             .ok()
             .filter(|v| !v.trim().is_empty()),
         final_trace_hash: report.final_trace_hash,
@@ -3142,7 +3142,7 @@ fn run_phase6_tuning_sequence(
 }
 
 fn main() {
-    println!("=== RUGC Curriculum Harness: Teach + Verify Learning ===");
+    println!("=== GORT Curriculum Harness: Teach + Verify Learning ===");
     println!();
     println!("Episode schema:");
     println!("  id, label, domain, kind, support_strength, wobble_strength, contradiction_strength, recovery_bias, novelty_tag");

@@ -281,7 +281,7 @@ cargo test
 
 GORT represents a fundamental departure from the GPU-driven statistical era:
 
-| Aspect | Statistical Era | RUGC |
+| Aspect | Statistical Era | GORT |
 |--------|-----------------|------|
 | **Paradigm** | Probabilistic pattern-fitting | Deterministic geometric reasoning |
 | **Output** | High-confidence approximations | Formally justified conclusions |
@@ -580,7 +580,7 @@ Interpretation: V2b is currently a holdout_04-pattern research probe, not a batt
 
 ### Phase 6.2 V3: Contradiction-Relief and Continuity-Rebinding (Experimental, 02-Class Probe)
 Target: contradiction-dominated recovery, especially holdout_02-style failures with high support-demand pressure
-Status: implemented as a separate experiment kind (`RUGC_PHASE62_KIND=contradiction`), replay-stable, not yet effective on the primary target class
+Status: implemented as a separate experiment kind (`GORT_PHASE62_KIND=contradiction`), replay-stable, not yet effective on the primary target class
 
 Measured V3 effect (first contradiction-relief probe, full hard-holdout battery, two replay-identical runs):
 - Aggregate memory score: unchanged at 5/6 (V1: 5/6 -> V2a: 5/6 -> V2b: 5/6 -> V3: 5/6)
@@ -596,7 +596,7 @@ Interpretation: V3 confirms that contradiction-dominated recovery needs a genuin
 
 ### Phase 6.2 V3b: Closure-Regime-First Contradiction Branching (Experimental)
 Target: split contradiction recovery into closure-ready (05-class) vs closure-deficit (02-class) branches using runtime summary signals from the first trained recovery pre-pass
-Status: implemented as a separate experiment kind (`RUGC_PHASE62_KIND=v3b`), replay-stable, structurally cleaner than novelty-family gating, not yet promoted
+Status: implemented as a separate experiment kind (`GORT_PHASE62_KIND=v3b`), replay-stable, structurally cleaner than novelty-family gating, not yet promoted
 
 Measured V3b effect (closure-regime branch, full hard-holdout battery, two replay-identical runs):
 - Aggregate memory score: 4/6 on this branch snapshot (V1: 4/6 -> V2a: 4/6 -> V2b: 4/6 -> V3: 5/6 -> V3b: 4/6)
@@ -694,24 +694,24 @@ Execution note:
 
 ```bash
 # Reproducible V4 gate pass: V4-A..V4-E
-# Assumes V4 branch kind is wired to RUGC_PHASE62_KIND=v4.
+# Assumes V4 branch kind is wired to GORT_PHASE62_KIND=v4.
 set -euo pipefail
 
-OUT1=/tmp/rugc_v4_pass1.txt
-OUT2=/tmp/rugc_v4_pass2.txt
+OUT1=/tmp/gort_v4_pass1.txt
+OUT2=/tmp/gort_v4_pass2.txt
 
 # 1) Static/test gate sanity (structural tests + phase62 integration gates)
 cargo test phase62_structural_experiment -- --nocapture --test-threads=1
 cargo test --test phase62_structural -- --nocapture
 
 # 2) Full hard-holdout battery twice (replay stability check)
-RUGC_PHASE62_KIND=v4 cargo run --quiet --example curriculum_harness > "$OUT1"
-RUGC_PHASE62_KIND=v4 cargo run --quiet --example curriculum_harness > "$OUT2"
+GORT_PHASE62_KIND=v4 cargo run --quiet --example curriculum_harness > "$OUT1"
+GORT_PHASE62_KIND=v4 cargo run --quiet --example curriculum_harness > "$OUT2"
 
 # 3) Replay identity for V4-D (same per-holdout telemetry tuples)
-grep -E "phase62_v3b_holdout_telemetry|phase62_v4_holdout_telemetry|holdout_[0-9]{2}.*memory_score|learning_curve_iterations" "$OUT1" > /tmp/rugc_v4_tuples1.txt
-grep -E "phase62_v3b_holdout_telemetry|phase62_v4_holdout_telemetry|holdout_[0-9]{2}.*memory_score|learning_curve_iterations" "$OUT2" > /tmp/rugc_v4_tuples2.txt
-diff -u /tmp/rugc_v4_tuples1.txt /tmp/rugc_v4_tuples2.txt
+grep -E "phase62_v3b_holdout_telemetry|phase62_v4_holdout_telemetry|holdout_[0-9]{2}.*memory_score|learning_curve_iterations" "$OUT1" > /tmp/gort_v4_tuples1.txt
+grep -E "phase62_v3b_holdout_telemetry|phase62_v4_holdout_telemetry|holdout_[0-9]{2}.*memory_score|learning_curve_iterations" "$OUT2" > /tmp/gort_v4_tuples2.txt
+diff -u /tmp/gort_v4_tuples1.txt /tmp/gort_v4_tuples2.txt
 
 # 4) Compact gate evidence extraction for V4-A..V4-E
 echo "=== V4-A (02-class repair) ==="
@@ -745,7 +745,7 @@ Gate-to-evidence mapping (protocol quick-reference):
 | V4-A | `=== V4-A (02-class repair) ===` grep tail for `holdout_02`, `continuity_delta`, `external_change_delta`, `memory_score` | 02-class closure-deficit repair signal (continuity/external plus score) |
 | V4-B | `=== V4-B (no regression on strong case holdout_01) ===` grep tail for `holdout_01`, `continuity_delta`, `external_change_delta`, `memory_score` | Strong-case no-regression safety envelope |
 | V4-C | `=== V4-C (battery floor aggregate) ===` grep tail for `aggregate`, `memory.*score`, `hard-holdout`, `final summary` | Battery-level floor and promoted-baseline parity |
-| V4-D | `diff -u /tmp/rugc_v4_tuples1.txt /tmp/rugc_v4_tuples2.txt` after tuple extraction grep | Replay tuple identity across consecutive full runs |
+| V4-D | `diff -u /tmp/gort_v4_tuples1.txt /tmp/gort_v4_tuples2.txt` after tuple extraction grep | Replay tuple identity across consecutive full runs |
 | V4-E | `=== V4-E (speed budget) ===` grep tail for `learning_curve_iterations` and `recovery_converged_iteration` | Convergence-speed budget and cross-regime consistency |
 
 ### Phase 6.3 Direction: New Structural Mechanism (Not Another Probe)
@@ -986,7 +986,7 @@ Phase 6.6 continuity-rebase constants (frozen v1):
     - `beta = 2`
     - `gamma = 1`
 - Scope:
-    - Applied only in Phase 6.6 telemetry (`RUGC_PHASE62_KIND=phase66`) during this stage.
+    - Applied only in Phase 6.6 telemetry (`GORT_PHASE62_KIND=phase66`) during this stage.
     - No constraint mutation or behavioral routing change is introduced by this formula pass.
 
 ## Integration with UGC-Model
@@ -1006,7 +1006,7 @@ See [LICENSE](LICENSE) or http://www.apache.org/licenses/LICENSE-2.0 for the ful
 
 ## Contributing
 
-RUGC is foundational work toward open-sourcing after validation on a 31B brain on this system. See the main workspace for context.
+GORT is foundational work toward open-sourcing after validation on a 31B brain on this system. See the main workspace for context.
 
 ---
 

@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     compare_topologies, compute_cognitive_topology, detect_phase_transition,
     track_manifold_evolution, DeterminismVerifier, MultiFrameCognition, MultiFrameConfig,
     SemanticConstraint,
@@ -60,7 +60,7 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn topo(mfc: &mut MultiFrameCognition) -> rugc::CognitiveTopology {
+fn topo(mfc: &mut MultiFrameCognition) -> gort::CognitiveTopology {
     let report = mfc.run(cfg(4)).expect("run should succeed");
     compute_cognitive_topology(&report.consolidated_memory, 500)
         .expect("topology should compute")

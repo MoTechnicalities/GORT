@@ -1,4 +1,4 @@
-use rugc::{DeterminismVerifier, MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
+use gort::{DeterminismVerifier, MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 
 fn build_conflicting_mfc() -> MultiFrameCognition {
     let mut mfc = MultiFrameCognition::new();

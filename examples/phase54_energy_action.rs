@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     compute_cognitive_flow_field, compute_cognitive_potential_field,
     compute_cognitive_topology, compute_energy_minimizing_trajectory, select_action,
     MultiFrameCognition, MultiFrameConfig, SemanticConstraint,
@@ -60,7 +60,7 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn run_topo(external: bool) -> (rugc::CognitiveTopology, Vec<String>) {
+fn run_topo(external: bool) -> (gort::CognitiveTopology, Vec<String>) {
     let report = build(external).run(cfg(4)).expect("run should succeed");
     let topo = compute_cognitive_topology(&report.consolidated_memory, 500)
         .expect("topology should compute");
@@ -68,7 +68,7 @@ fn run_topo(external: bool) -> (rugc::CognitiveTopology, Vec<String>) {
     (topo, anchor_ids)
 }
 
-fn print_step(label: &str, snapshots: &[rugc::CognitiveTopology], anchor_ids: &[String]) {
+fn print_step(label: &str, snapshots: &[gort::CognitiveTopology], anchor_ids: &[String]) {
     let flow = compute_cognitive_flow_field(snapshots, anchor_ids)
         .expect("flow should compute");
     let potential = compute_cognitive_potential_field(&flow)

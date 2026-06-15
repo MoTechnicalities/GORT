@@ -1,4 +1,4 @@
-use rugc::{compute_cognitive_topology, MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
+use gort::{compute_cognitive_topology, MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 
 fn cfg(workers: usize) -> MultiFrameConfig {
     MultiFrameConfig {
@@ -57,7 +57,7 @@ fn build(external: bool) -> MultiFrameCognition {
 }
 
 fn main() {
-    println!("=== RUGC Phase 5.1 Emergent Cognitive Topology Demo ===\n");
+    println!("=== GORT Phase 5.1 Emergent Cognitive Topology Demo ===\n");
 
     let mut baseline = build(false);
     let mut perturbed = build(true);

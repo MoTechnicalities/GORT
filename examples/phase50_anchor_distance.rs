@@ -1,4 +1,4 @@
-use rugc::{anchor_derived_relational_distance, MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
+use gort::{anchor_derived_relational_distance, MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 
 fn cfg(workers: usize) -> MultiFrameConfig {
     MultiFrameConfig {
@@ -60,7 +60,7 @@ fn build(external: bool) -> MultiFrameCognition {
 }
 
 fn main() {
-    println!("=== RUGC Phase 5.0 Anchor-Derived Relational Distance Demo ===\n");
+    println!("=== GORT Phase 5.0 Anchor-Derived Relational Distance Demo ===\n");
 
     let mut baseline_a = build(false);
     let mut baseline_b = build(false);

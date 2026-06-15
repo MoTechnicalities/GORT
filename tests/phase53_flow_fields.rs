@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     compute_cognitive_flow_field, compute_cognitive_topology, DeterminismVerifier,
     MultiFrameCognition, MultiFrameConfig, SemanticConstraint,
 };
@@ -59,7 +59,7 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn run_topo(external: bool) -> (rugc::CognitiveTopology, Vec<String>) {
+fn run_topo(external: bool) -> (gort::CognitiveTopology, Vec<String>) {
     let report = build(external).run(cfg(4)).expect("run should succeed");
     let topo = compute_cognitive_topology(&report.consolidated_memory, 500)
         .expect("topology should compute");

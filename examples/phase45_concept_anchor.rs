@@ -1,4 +1,4 @@
-use rugc::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
+use gort::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 use std::collections::BTreeSet;
 
 fn build(add_external_perturbation: bool) -> MultiFrameCognition {
@@ -58,7 +58,7 @@ fn config() -> MultiFrameConfig {
 }
 
 fn main() {
-    println!("=== RUGC Phase 4.5 Concept Anchor Demo ===\n");
+    println!("=== GORT Phase 4.5 Concept Anchor Demo ===\n");
 
     let mut baseline = build(false);
     let mut perturbed = build(true);

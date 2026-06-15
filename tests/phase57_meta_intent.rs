@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     arbitrate_intent_field, build_meta_intent_field, compute_cognitive_flow_field,
     compute_cognitive_potential_field, compute_cognitive_topology, compute_intent_field,
     compute_meta_preference_gradients, resolve_meta_intent_trajectory, DeterminismVerifier,
@@ -65,7 +65,7 @@ fn build(external: bool) -> MultiFrameCognition {
 fn run_pipeline(
     external: bool,
     workers: usize,
-) -> (rugc::CognitivePotentialField, rugc::ArbitratedIntentField, Vec<String>) {
+) -> (gort::CognitivePotentialField, gort::ArbitratedIntentField, Vec<String>) {
     let report = build(external).run(cfg(workers)).expect("run should succeed");
     let mem = &report.consolidated_memory;
     let anchors = mem.anchor_basis_ids.clone();

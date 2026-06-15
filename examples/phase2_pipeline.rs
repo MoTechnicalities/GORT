@@ -1,10 +1,10 @@
-use rugc::{
+use gort::{
     ArithmeticMode, CognitiveFrame, ConstraintEvalEngine, GeometricState, SemanticConstraint,
     TaskScheduler, ScheduledTask,
 };
 
 fn main() {
-    println!("=== RUGC Phase 2 Pipeline ===\n");
+    println!("=== GORT Phase 2 Pipeline ===\n");
 
     // 1) Constraints
     let constraints = vec![

@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     compute_cognitive_topology, DeterminismVerifier, MultiFrameCognition, MultiFrameConfig,
     SemanticConstraint,
 };

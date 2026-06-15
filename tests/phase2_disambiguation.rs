@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     ArithmeticMode, ConstraintEvalEngine, ScheduledTask, SemanticConstraint, TaskScheduler,
 };
 use std::collections::BTreeMap;

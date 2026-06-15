@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     compare_topologies, compute_cognitive_topology, detect_phase_transition,
     track_manifold_evolution, MultiFrameCognition, MultiFrameConfig, SemanticConstraint,
 };
@@ -59,14 +59,14 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn snap(external: bool) -> rugc::CognitiveTopology {
+fn snap(external: bool) -> gort::CognitiveTopology {
     let report = build(external).run(cfg(4)).expect("run should succeed");
     compute_cognitive_topology(&report.consolidated_memory, 500)
         .expect("topology should compute")
 }
 
 fn main() {
-    println!("=== RUGC Phase 5.2 Cognitive Manifold Dynamics Demo ===\n");
+    println!("=== GORT Phase 5.2 Cognitive Manifold Dynamics Demo ===\n");
 
     // Simulate an evolution: stable -> stable -> perturbed -> stable
     let sequence = vec![false, false, true, false];

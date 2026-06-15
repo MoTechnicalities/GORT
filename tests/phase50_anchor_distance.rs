@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     anchor_derived_relational_distance, DeterminismVerifier, MultiFrameCognition, MultiFrameConfig,
     SemanticConstraint,
 };

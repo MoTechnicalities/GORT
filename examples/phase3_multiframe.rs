@@ -1,7 +1,7 @@
-use rugc::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
+use gort::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 
 fn main() {
-    println!("=== RUGC Phase 3 Multi-Frame Demo ===\n");
+    println!("=== GORT Phase 3 Multi-Frame Demo ===\n");
 
     let mut mfc = MultiFrameCognition::new();
 

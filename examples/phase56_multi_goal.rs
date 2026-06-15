@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     arbitrate_intent_field, compute_cognitive_flow_field, compute_cognitive_potential_field,
     compute_cognitive_topology, compute_intent_field, resolve_trajectory, MultiFrameCognition,
     MultiFrameConfig, SemanticConstraint,
@@ -61,7 +61,7 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn run_pipeline(external: bool) -> (rugc::CognitivePotentialField, rugc::IntentField, Vec<String>) {
+fn run_pipeline(external: bool) -> (gort::CognitivePotentialField, gort::IntentField, Vec<String>) {
     let report = build(external).run(cfg(4)).expect("run should succeed");
     let mem = &report.consolidated_memory;
     let anchor_ids = mem.anchor_basis_ids.clone();

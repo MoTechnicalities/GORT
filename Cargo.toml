@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Mogir <mogir@example.com>"]
 description = "GORT: Geometric Operator-Regulated Thought - deterministic geometric reasoning engine"
 license = "Apache-2.0"
-repository = "https://github.com/MoTechnicalities/Rust-Unified-Geometric-Cognition"
+repository = "https://github.com/MoTechnicalities/GORT"
 readme = "README.md"
 
 [dependencies]

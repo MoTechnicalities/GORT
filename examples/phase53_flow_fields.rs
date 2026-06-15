@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     compute_cognitive_flow_field, compute_cognitive_topology, MultiFrameCognition,
     MultiFrameConfig, SemanticConstraint,
 };
@@ -59,7 +59,7 @@ fn build(external: bool) -> MultiFrameCognition {
     mfc
 }
 
-fn snap(external: bool) -> (rugc::CognitiveTopology, Vec<String>) {
+fn snap(external: bool) -> (gort::CognitiveTopology, Vec<String>) {
     let report = build(external).run(cfg()).expect("run should succeed");
     let topo = compute_cognitive_topology(&report.consolidated_memory, 500)
         .expect("topology should compute");
@@ -68,7 +68,7 @@ fn snap(external: bool) -> (rugc::CognitiveTopology, Vec<String>) {
 }
 
 fn main() {
-    println!("=== RUGC Phase 5.3 Cognitive Flow Fields Demo ===\n");
+    println!("=== GORT Phase 5.3 Cognitive Flow Fields Demo ===\n");
 
     // Simulate: stable → stable → perturbed → stable → stable
     let sequence = [false, false, true, false, false];

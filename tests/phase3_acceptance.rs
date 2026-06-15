@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     ArithmeticMode, AuditLogger, CognitiveFrame, ConstraintEvalEngine, DeterminismVerifier,
     GeometricState, SemanticConstraint, TaskScheduler,
 };

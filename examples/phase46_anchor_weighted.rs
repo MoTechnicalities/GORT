@@ -1,7 +1,7 @@
-use rugc::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
+use gort::{MultiFrameCognition, MultiFrameConfig, SemanticConstraint};
 
 fn main() {
-    println!("=== RUGC Phase 4.6 Anchor-Weighted Interpretation Demo ===\n");
+    println!("=== GORT Phase 4.6 Anchor-Weighted Interpretation Demo ===\n");
 
     let mut mfc = MultiFrameCognition::new();
 

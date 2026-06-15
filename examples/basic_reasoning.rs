@@ -5,7 +5,7 @@
 /// - Evaluating closure status
 /// - Tracking deterministic transitions
 
-use rugc::{
+use gort::{
     GeometricState, ClosureStatus, ClosureTransition,
     InvariantViolation,
 };
@@ -87,7 +87,7 @@ impl GeometricState for SimpleReasoningFrame {
 }
 
 fn main() {
-    println!("=== RUGC Basic Reasoning Example ===\n");
+    println!("=== GORT Basic Reasoning Example ===\n");
 
     // Create a reasoning frame
     let mut frame = SimpleReasoningFrame::new("What is the color of light?".to_string());

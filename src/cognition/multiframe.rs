@@ -1331,11 +1331,11 @@ fn frame_matches_phase62_target_novelty(constraints: &[SemanticConstraint], targ
 fn phase62_config_for_frame(constraints: &[SemanticConstraint]) -> Phase62StructuralConfig {
     let mut config = Phase62StructuralConfig::default();
 
-    if !phase62_env_flag("RUGC_PHASE62_ENABLE") {
+    if !phase62_env_flag("GORT_PHASE62_ENABLE") {
         return config;
     }
 
-    if let Some(target) = env::var("RUGC_PHASE62_TARGET_NOVELTY")
+    if let Some(target) = env::var("GORT_PHASE62_TARGET_NOVELTY")
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
@@ -1345,13 +1345,13 @@ fn phase62_config_for_frame(constraints: &[SemanticConstraint]) -> Phase62Struct
         }
     }
 
-    if let Some(max_bridge) = phase62_env_usize("RUGC_PHASE62_MAX_BRIDGE") {
+    if let Some(max_bridge) = phase62_env_usize("GORT_PHASE62_MAX_BRIDGE") {
         config.max_bridge_constraints_per_subject = max_bridge.max(1);
     }
-    if let Some(weight) = phase62_env_u8("RUGC_PHASE62_BRIDGE_WEIGHT") {
+    if let Some(weight) = phase62_env_u8("GORT_PHASE62_BRIDGE_WEIGHT") {
         config.bridge_weight = weight.max(1);
     }
-    if let Some(kind) = phase62_env_kind("RUGC_PHASE62_KIND") {
+    if let Some(kind) = phase62_env_kind("GORT_PHASE62_KIND") {
         config.kind = kind;
     }
 

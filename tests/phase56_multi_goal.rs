@@ -1,4 +1,4 @@
-use rugc::{
+use gort::{
     arbitrate_intent_field, build_goal_set, compute_cognitive_flow_field,
     compute_cognitive_potential_field, compute_cognitive_topology, compute_conflict_gradients,
     compute_intent_field, resolve_trajectory, DeterminismVerifier, MultiFrameCognition,
@@ -63,8 +63,8 @@ fn build(external: bool) -> MultiFrameCognition {
 }
 
 fn run_pipeline(external: bool, workers: usize) -> (
-    rugc::CognitivePotentialField,
-    rugc::IntentField,
+    gort::CognitivePotentialField,
+    gort::IntentField,
     Vec<String>,
 ) {
     let report = build(external).run(cfg(workers)).expect("run should succeed");

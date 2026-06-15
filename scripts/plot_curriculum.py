@@ -466,7 +466,7 @@ def main():
     <html lang="en">
     <head>
       <meta charset="utf-8" />
-      <title>RUGC Curriculum Learning Curves</title>
+      <title>GORT Curriculum Learning Curves</title>
       <style>
         body {{ font-family: system-ui, sans-serif; margin: 24px; background: #f8fafc; color: #111827; }}
         h1 {{ margin-bottom: 8px; }}
@@ -479,7 +479,7 @@ def main():
       </style>
     </head>
     <body>
-      <h1>RUGC Curriculum Learning Curves</h1>
+      <h1>GORT Curriculum Learning Curves</h1>
       <p class="meta">Source: {html.escape(str(CSV_PATH))}</p>
       <p class="meta">Modes: {html.escape(', '.join(modes))}</p>
       <p class="meta">Domains: {html.escape(', '.join(domains))}</p>

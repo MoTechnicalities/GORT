@@ -1,8 +1,8 @@
-# RUGC Architecture Axioms
+# GORT Architecture Axioms
 
 ## Design Axiom: Geometry Emerges From Stability
 
-RUGC is built on a developmental premise:
+GORT is built on a developmental premise:
 
 - Geometry is not loaded first.
 - Geometry emerges from stable, persistent identity under repeated interaction.
@@ -13,7 +13,7 @@ Naive paradigm:
 
 Predefined geometry -> learning inside it -> reasoning on top of it.
 
-RUGC paradigm:
+GORT paradigm:
 
 Stable identity -> exploratory interaction -> relational regularities -> endogenous geometry -> understanding -> intelligence.
 
@@ -28,7 +28,7 @@ This distinction is foundational.
 - Container interpretation: geometry-first data model
 - Generative interpretation: stability-first developmental substrate
 
-RUGC follows the generative interpretation.
+GORT follows the generative interpretation.
 
 ## Developmental Ladder
 
@@ -66,7 +66,7 @@ Therefore:
 
 ## Roadmap Implication
 
-RUGC does not postpone geometry by accident.
-RUGC postpones geometry by design until developmental preconditions are satisfied.
+GORT does not postpone geometry by accident.
+GORT postpones geometry by design until developmental preconditions are satisfied.
 
 This positions "Emergent Cognitive Geometry" as a Phase 5 milestone grounded in verified state continuity, anchor stability, and relational emergence.
