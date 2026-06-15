@@ -308,6 +308,12 @@ pub struct Phase80FrameParameterSnapshot {
     pub parameters: Vec<Phase80FrameParameterValue>,
 }
 
+/// Canonical frame-local parameter registry for Phase 8 Slice 2.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80FrameLocalParameterRegistry {
+    pub frames: Vec<Phase80FrameParameterSnapshot>,
+}
+
 /// Canonical structural-parameter descriptor for Phase 7.x.
 /// The registry is deterministic and defines bounded, reversible adjustments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -533,6 +539,107 @@ pub fn phase80_scaffold_frame_parameter_snapshots(
     }
 
     Ok(snapshots)
+}
+
+/// Build canonical frame-local parameter registry from deterministic snapshots.
+pub fn phase80_build_frame_local_parameter_registry(
+    log: &Phase70AdjustmentLog,
+    registry: &Phase70StructuralParameterRegistry,
+) -> Result<Phase80FrameLocalParameterRegistry, String> {
+    let mut frames = phase80_scaffold_frame_parameter_snapshots(log, registry)?;
+    frames.sort_by(|a, b| a.frame_id.cmp(&b.frame_id));
+    Ok(Phase80FrameLocalParameterRegistry { frames })
+}
+
+/// Resolve an effective parameter value using canonical deterministic fallback:
+/// exact frame -> nearest previous frame -> none.
+pub fn phase80_resolve_frame_parameter(
+    registry: &Phase80FrameLocalParameterRegistry,
+    frame_id: &str,
+    parameter_name: &str,
+) -> Option<i32> {
+    let mut last_value: Option<i32> = None;
+    for frame in &registry.frames {
+        if let Some(value) = frame
+            .parameters
+            .iter()
+            .find(|parameter| parameter.parameter_name == parameter_name)
+            .map(|parameter| parameter.effective_value)
+        {
+            if frame.frame_id == frame_id {
+                return Some(value);
+            }
+            if frame.frame_id.as_str() < frame_id {
+                last_value = Some(value);
+            }
+        }
+    }
+    last_value
+}
+
+/// Validate deterministic continuity invariants across frame-local parameters.
+///
+/// Invariants checked:
+/// - Frame IDs are strictly increasing in canonical registry order
+/// - Parameter names are unique within each frame
+/// - Each effective value stays inside registry bounds
+/// - Consecutive frame jumps for each parameter are step-bounded
+pub fn phase80_validate_frame_continuity_invariants(
+    registry: &Phase80FrameLocalParameterRegistry,
+    parameter_registry: &Phase70StructuralParameterRegistry,
+) -> Result<(), String> {
+    let mut previous_frame_id: Option<&str> = None;
+    let mut previous_values: BTreeMap<&str, i32> = BTreeMap::new();
+
+    for frame in &registry.frames {
+        if let Some(previous) = previous_frame_id {
+            if frame.frame_id.as_str() <= previous {
+                return Err(format!(
+                    "non-canonical frame order: {} after {}",
+                    frame.frame_id, previous
+                ));
+            }
+        }
+        previous_frame_id = Some(frame.frame_id.as_str());
+
+        let mut seen_names = BTreeSet::new();
+        for parameter in &frame.parameters {
+            if !seen_names.insert(parameter.parameter_name.as_str()) {
+                return Err(format!(
+                    "duplicate parameter {} in frame {}",
+                    parameter.parameter_name, frame.frame_id
+                ));
+            }
+
+            let Some(spec) = parameter_registry.get(&parameter.parameter_name) else {
+                return Err(format!(
+                    "unknown parameter {} in frame {}",
+                    parameter.parameter_name, frame.frame_id
+                ));
+            };
+
+            if parameter.effective_value < spec.min_value || parameter.effective_value > spec.max_value {
+                return Err(format!(
+                    "parameter {} out of bounds in frame {}",
+                    parameter.parameter_name, frame.frame_id
+                ));
+            }
+
+            if let Some(previous_value) = previous_values.get(parameter.parameter_name.as_str()) {
+                let jump = (parameter.effective_value - *previous_value).abs();
+                if jump > spec.delta.abs() {
+                    return Err(format!(
+                        "continuity jump exceeded for {} in frame {}",
+                        parameter.parameter_name, frame.frame_id
+                    ));
+                }
+            }
+
+            previous_values.insert(parameter.parameter_name.as_str(), parameter.effective_value);
+        }
+    }
+
+    Ok(())
 }
 
 fn phase70_apply_parameter_step(
@@ -4459,6 +4566,100 @@ mod tests {
         assert_eq!(snapshots_a, snapshots_b);
         assert_eq!(snapshots_a[0].frame_id, "phase80_frame_0001");
         assert_eq!(snapshots_a[1].frame_id, "phase80_frame_0002");
+    }
+
+    #[test]
+    fn phase80_frame_local_registry_resolution_is_canonical() {
+        let registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: false,
+                    pre_value: 1,
+                    post_value: 1,
+                    delta: 0,
+                    inverse_delta: 0,
+                },
+            ],
+        };
+
+        let frame_registry = phase80_build_frame_local_parameter_registry(&log, &registry)
+            .expect("frame-local registry should build");
+
+        assert_eq!(
+            phase80_resolve_frame_parameter(
+                &frame_registry,
+                "phase80_frame_0002",
+                PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            phase80_resolve_frame_parameter(
+                &frame_registry,
+                "phase80_frame_0003",
+                PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST
+            ),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn phase80_frame_continuity_invariants_are_replay_stable() {
+        let parameter_registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_03_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_03_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 1,
+                    post_value: 2,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+
+        let registry_a = phase80_build_frame_local_parameter_registry(&log, &parameter_registry)
+            .expect("frame-local registry should build");
+        let registry_b = phase80_build_frame_local_parameter_registry(&log, &parameter_registry)
+            .expect("frame-local registry should build");
+
+        let check_a = phase80_validate_frame_continuity_invariants(&registry_a, &parameter_registry);
+        let check_b = phase80_validate_frame_continuity_invariants(&registry_b, &parameter_registry);
+
+        assert!(check_a.is_ok());
+        assert_eq!(check_a, check_b);
+        assert_eq!(registry_a, registry_b);
     }
 }
 
