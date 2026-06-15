@@ -118,3 +118,55 @@ Every capability added to GORT must be traceable to one of the four cognitive co
 - **Context** — carrying forward accumulated state to inform current decisions
 
 A feature that advances none of these is architectural noise.
+
+---
+
+## Governing Law: Cognition Is a Higher-Order Geometric Process
+
+> **Cognition in GORT is defined as a higher-order geometric process.**
+> **All relevance, prioritization, context, and correctness must arise from geometric invariants, not symbolic heuristics.**
+> **Logic is necessary, but cognition is geometric.**
+
+This is the law that preserves GORT's identity across all future phases.
+
+### What This Means
+
+Cognition in GORT is not:
+- a bag of heuristics
+- a stack of logical rules
+- a probabilistic guesser
+- a symbolic manipulator
+
+Cognition in GORT is a **geometric transformation pipeline**:
+
+| Cognitive Component | Geometric Origin |
+|---|---|
+| Relevance | Geometric alignment between frames and anchors |
+| Prioritization | Geometric pressure — closure-deficit index, contradiction pressure ratio |
+| Context | Multi-frame geometric continuity across the developmental spine |
+| Correctness | Deterministic operator-regulated geometric flow |
+
+The direction is: **geometry → cognition → logic**, not the reverse.
+
+### The Missing Clause of the Identity Axiom
+
+The Cognitive Identity Axiom states:
+
+```
+Cognition = relevance + prioritization + context + correctness
+```
+
+The governing law adds the required constraint:
+
+> **All four components must be grounded in geometric structure, not symbolic or heuristic shortcuts.**
+
+### Phase-by-Phase Enforcement
+
+| Phase | Geometric Requirement |
+|---|---|
+| Phase 6.7 | Structural rewrite rules must be geometric adjustments, not symbolic patches |
+| Phase 7.x | Heuristics must be geometric invariants, not ad-hoc rules |
+| Phase 8.x | Multi-frame reasoning frames must be geometric coordinate systems |
+| Phase 9.x | Emergent cognition must arise from geometric resonance, not statistical approximation |
+
+This is the safeguard that ensures no future contributor can reduce GORT to a logic engine with decorations.
