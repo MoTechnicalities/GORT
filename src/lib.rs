@@ -1,11 +1,11 @@
-//! RUGC: Rust Unified Geometric Cognition
+//! GORT: Geometric Operator-Regulated Thought
 //!
 //! A deterministic geometric reasoning engine built on Rust invariants,
 //! grounded in mathematical rigor, and designed for formal verification.
 //!
 //! ## Architecture
 //!
-//! RUGC forms the missing middle between the UGC geometric representational layer
+//! GORT forms the missing middle between the UGC geometric representational layer
 //! and CPU hardware execution. It provides:
 //!
 //! - **Geometric Primitives** (`geom/`): Space, fields, and resonance modes

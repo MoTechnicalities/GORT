@@ -1,9 +1,9 @@
-/// RUGC Entry Point
+/// GORT Entry Point
 /// 
 /// This is a library crate. See examples/ for usage demonstrations.
 
 fn main() {
-    println!("RUGC: Rust Unified Geometric Cognition");
+    println!("GORT: Geometric Operator-Regulated Thought");
     println!("Deterministic reasoning engine with formal invariants");
     println!();
     println!("Run examples with:");

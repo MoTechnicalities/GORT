@@ -1,12 +1,12 @@
-# RUGC: Rust Unified Geometric Cognition
+# GORT: Geometric Operator-Regulated Thought
 
 **The first deterministic geometric reasoning engine.**
 
-RUGC is a formal, independent Rust implementation of a semantic compilation stack grounded in geometric invariants. It sits between the **UGC geometric representational layer** and **CPU hardware execution** — the missing middle of deterministic AI.
+GORT is a formal, independent Rust implementation of a semantic compilation stack grounded in geometric invariants. It sits between the **UGC geometric representational layer** and **CPU hardware execution** — the missing middle of deterministic AI.
 
 ## Philosophy
 
-RUGC rejects the statistical/probabilistic paradigm that dominates modern AI. Instead, it proposes:
+GORT rejects the statistical/probabilistic paradigm that dominates modern AI. Instead, it proposes:
 
 - **Determinism**: Same input + state → identical output (byte-stable reasoning frames)
 - **Rigor**: All operations derive from formal geometric and semantic invariants
@@ -17,13 +17,13 @@ This is not pattern-matching. This is cognition.
 
 ## Design Axiom: Geometry Emerges From Stability
 
-RUGC adopts a developmental architecture where geometry is not assumed at initialization.
+GORT adopts a developmental architecture where geometry is not assumed at initialization.
 
 Naive paradigm:
 
 Predefined geometry -> learning inside it -> reasoning on top of it.
 
-RUGC paradigm:
+GORT paradigm:
 
 Stable identity -> exploratory interaction -> relational regularities -> endogenous geometry -> understanding -> intelligence.
 
@@ -36,9 +36,9 @@ Stable identity -> exploratory interaction -> relational regularities -> endogen
 - Container geometry: geometry is predefined and cognition is inserted into it
 - Generative geometry: stability and continuity are established first, then geometry is discovered from repeated interaction
 
-RUGC explicitly follows the generative model.
+GORT explicitly follows the generative model.
 
-### Developmental Sequence in RUGC
+### Developmental Sequence in GORT
 
 - Invariant -> state -> attractor -> play -> relationship discovery -> geometry -> understanding -> intelligence
 - `GeometricState` provides the persistent substrate and reference stability
@@ -48,7 +48,7 @@ RUGC explicitly follows the generative model.
 
 ### Why the Current Order Is Intentional
 
-RUGC is not missing geometry. RUGC is implementing the preconditions that make geometry meaningful and auditable.
+GORT is not missing geometry. GORT is implementing the preconditions that make geometry meaningful and auditable.
 
 - Without persistent state, there is no stable reference frame
 - Without a stable reference frame, relational terms (near/far, same/different, before/after) are operationally undefined
@@ -60,7 +60,7 @@ For the formal architecture statement, see `ARCHITECTURE_AXIOMS.md`.
 
 ## Core Architecture
 
-RUGC is organized into three conceptual layers:
+GORT is organized into three conceptual layers:
 
 ### 1. **Geometric Primitives** (`src/geom/`)
 
@@ -90,7 +90,7 @@ Ensures reproducible execution:
 
 ## The Cognitive Kernel
 
-The foundation of RUGC is a three-piece cognitive kernel:
+The foundation of GORT is a three-piece cognitive kernel:
 
 ### 1. Core Invariants
 
@@ -279,7 +279,7 @@ cargo test
 
 ## Historical Context
 
-RUGC represents a fundamental departure from the GPU-driven statistical era:
+GORT represents a fundamental departure from the GPU-driven statistical era:
 
 | Aspect | Statistical Era | RUGC |
 |--------|-----------------|------|
@@ -289,7 +289,7 @@ RUGC represents a fundamental departure from the GPU-driven statistical era:
 | **Reproducibility** | Non-deterministic (even with fixed seeds) | Byte-stable (exact replay) |
 | **Hardware** | GPU massively parallel | CPU deterministic parallelism |
 
-RUGC is the first system designed for **actual cognition**, not statistical fitting.
+GORT is the first system designed for **actual cognition**, not statistical fitting.
 
 ## Roadmap
 
@@ -991,10 +991,10 @@ Phase 6.6 continuity-rebase constants (frozen v1):
 
 ## Integration with UGC-Model
 
-RUGC depends on the geometric representations defined in UGC-Model (`CSIF`, `RWIF`, resonance geometry) but takes them forward into CPU-native implementation:
+GORT depends on the geometric representations defined in UGC-Model (`CSIF`, `RWIF`, resonance geometry) but takes them forward into CPU-native implementation:
 
 - **UGC-Model** defines the *theory* and *representational formats*
-- **RUGC** provides the *runtime*, *compiler*, and *cognitive kernel*
+- **GORT** provides the *runtime*, *compiler*, and *cognitive kernel*
 
 Together they form a complete stack from geometric theory to deterministic execution.
 
@@ -1010,5 +1010,5 @@ RUGC is foundational work toward open-sourcing after validation on a 31B brain o
 
 ---
 
-**RUGC is the counter-proposal to the statistical GPU-driven era.**  
+**GORT is the counter-proposal to the statistical GPU-driven era.**  
 **It is deterministic. It is auditable. It is cognition.**

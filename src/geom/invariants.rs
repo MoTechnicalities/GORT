@@ -1,7 +1,7 @@
-/// # RUGC Invariants: The Cognitive Kernel
+/// # GORT Invariants: The Cognitive Kernel
 ///
 /// This module defines the core invariants, traits, and contracts that form
-/// the foundation of deterministic geometric reasoning in RUGC.
+/// the foundation of deterministic geometric reasoning in GORT.
 ///
 /// ## Three Core Pieces of the Cognitive Kernel:
 ///
