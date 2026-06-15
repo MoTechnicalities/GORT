@@ -17,6 +17,7 @@ labels=(
   "phase62_unit_core"
   "phase62_integration_suite"
   "phase80_unit_suite"
+  "phase80_slice6_integration_quality"
   "phase80_runtime_gauntlet"
 )
 
@@ -24,6 +25,7 @@ commands=(
   "cargo test phase62_structural_experiment -- --nocapture --test-threads=1"
   "cargo test --test phase62_structural -- --nocapture"
   "cargo test phase80_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_slice6_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
 

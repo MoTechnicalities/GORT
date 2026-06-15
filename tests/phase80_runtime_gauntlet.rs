@@ -337,3 +337,115 @@ fn gauntlet_slice5_integration_summary_and_phase9_hook_are_replay_stable() {
     assert_eq!(summary_a.total_continuity_adjusted_delta, 2);
     assert!(hook_a.integration_ready);
 }
+
+#[test]
+fn gauntlet_slice6_gate_a_semantic_propagation_is_canonical_across_none_gaps() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_slice6_a1", "none", false, 0, 0, 0),
+            entry(2, "holdout_slice6_a2", "continuity_insensitive", true, 0, 1, 1),
+            entry(3, "holdout_slice6_a3", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let trace =
+        phase80_run_multiframe_episode("slice6_gate_a", &log, &registry).expect("episode run");
+    let deltas =
+        phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry).expect("deltas");
+
+    assert_eq!(deltas.len(), 3);
+    assert_eq!(deltas[0].propagated_semantic_context, "none");
+    assert_eq!(deltas[1].propagated_semantic_context, "continuity_insensitive");
+    assert_eq!(deltas[2].propagated_semantic_context, "continuity_insensitive");
+}
+
+#[test]
+fn gauntlet_slice6_gate_b_continuity_adjustment_degrades_deltas_and_weight_on_break() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_slice6_b1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_slice6_b2", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let mut trace =
+        phase80_run_multiframe_episode("slice6_gate_b", &log, &registry).expect("episode run");
+    // Simulate one continuity break to verify deterministic continuity-aware damping.
+    trace.steps[1].continuity_preserved = false;
+
+    let deltas =
+        phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry).expect("deltas");
+    let summary = phase80_summarize_episode_structural_integration(&trace, &log, &registry)
+        .expect("summary");
+    let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+
+    assert_eq!(summary.total_raw_structural_delta, 2);
+    assert_eq!(summary.total_continuity_adjusted_delta, 1);
+    assert_eq!(hook.continuity_weight_percent, 50);
+    assert!(!summary.continuity_preserved);
+}
+
+#[test]
+fn gauntlet_slice6_gate_c_phase9_hook_readiness_requires_continuity_and_nonempty_delta_chain() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![entry(1, "holdout_slice6_c1", "none", false, 0, 0, 0)],
+    };
+
+    let mut trace =
+        phase80_run_multiframe_episode("slice6_gate_c", &log, &registry).expect("episode run");
+    trace.boundary_continuity_preserved = false;
+
+    let deltas =
+        phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry).expect("deltas");
+    let summary = phase80_summarize_episode_structural_integration(&trace, &log, &registry)
+        .expect("summary");
+    let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+
+    assert_eq!(deltas.len(), 1);
+    assert!(!summary.continuity_preserved);
+    assert!(!hook.integration_ready);
+}
+
+#[test]
+fn gauntlet_slice6_gate_d_integration_telemetry_is_replay_stable_over_50_runs() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_slice6_d1", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_slice6_d2", "none", false, 1, 1, 0),
+            entry(3, "holdout_slice6_d3", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let baseline_trace =
+        phase80_run_multiframe_episode("slice6_gate_d", &log, &registry).expect("episode");
+    let baseline_summary =
+        phase80_summarize_episode_structural_integration(&baseline_trace, &log, &registry)
+            .expect("summary");
+    let baseline_deltas =
+        phase80_integrate_cross_frame_structural_deltas(&baseline_trace, &log, &registry)
+            .expect("deltas");
+    let baseline_hook = phase80_build_phase9_integration_hook(&baseline_summary, &baseline_deltas);
+    let baseline_telemetry = phase80_emit_integration_telemetry(&baseline_summary, &baseline_hook);
+
+    for _ in 0..50 {
+        let trace =
+            phase80_run_multiframe_episode("slice6_gate_d", &log, &registry).expect("episode");
+        let summary =
+            phase80_summarize_episode_structural_integration(&trace, &log, &registry)
+                .expect("summary");
+        let deltas =
+            phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry)
+                .expect("deltas");
+        let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+        let telemetry = phase80_emit_integration_telemetry(&summary, &hook);
+
+        assert_eq!(summary, baseline_summary);
+        assert_eq!(deltas, baseline_deltas);
+        assert_eq!(hook, baseline_hook);
+        assert_eq!(telemetry, baseline_telemetry);
+    }
+}
