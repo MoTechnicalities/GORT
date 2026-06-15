@@ -192,6 +192,9 @@ pub struct Phase66Telemetry {
     pub continuity_rebased: i32,
     pub escalation_handoff: bool,
     pub phase67_escalation_marker: bool,
+    pub supervisor_intensity: i32,
+    pub problematic: bool,
+    pub effectiveness: i32,
     pub short_window_baseline: i32,
     pub medium_window_baseline: i32,
     pub long_window_baseline: i32,
@@ -446,8 +449,16 @@ fn phase67_telemetry_from_phase66(phase66: &Phase66Telemetry) -> Phase67Telemetr
     Phase67Telemetry {
         holdout_id: phase66.holdout_id.clone(),
         phase67_escalation_marker_in: phase66.phase67_escalation_marker,
-        phase67_semantic_context: "empty".to_string(),
+        phase67_semantic_context: phase67_semantic_context_from_phase66(phase66).to_string(),
         phase67_ready: true,
+    }
+}
+
+fn phase67_semantic_context_from_phase66(phase66: &Phase66Telemetry) -> &'static str {
+    if phase66.problematic && phase66.effectiveness >= 0 {
+        "continuity_insensitive"
+    } else {
+        "none"
     }
 }
 
@@ -479,6 +490,10 @@ fn phase66_telemetry_from_runtime(runtime_summary: &Phase63RuntimeSummary) -> Ph
             region_delta,
             anchor_delta,
         );
+    let supervisor_intensity = continuity_rebased.saturating_neg();
+    let problematic = continuity_delta == 0 && continuity_rebased < 0;
+    // Positive values indicate additional pressure remains after rebase.
+    let effectiveness = continuity_rebased.saturating_neg();
     let escalation_handoff = phase66_escalation_handoff_from_env();
     let phase67_escalation_marker = escalation_handoff;
 
@@ -499,6 +514,9 @@ fn phase66_telemetry_from_runtime(runtime_summary: &Phase63RuntimeSummary) -> Ph
         continuity_rebased,
         escalation_handoff,
         phase67_escalation_marker,
+        supervisor_intensity,
+        problematic,
+        effectiveness,
         short_window_baseline,
         medium_window_baseline,
         long_window_baseline,
@@ -553,7 +571,7 @@ fn phase66_continuity_rebased_from_runtime(runtime_summary: &Phase63RuntimeSumma
 
 fn phase66_telemetry_line(telemetry: &Phase66Telemetry) -> String {
     format!(
-        "holdout_id={} mode={} alpha_num={} alpha_den={} beta={} gamma={} continuity_pre={} continuity_post={} continuity_delta={} external_delta={} region_delta={} anchor_delta={} support_signal={} contradiction_signal={} contradiction_pressure_ratio_ppm={} contradiction_penalty={} region_reward={} anchor_reward={} continuity_rebased={} escalation_handoff={} phase67_escalation_marker={} short_window_baseline={} medium_window_baseline={} long_window_baseline={}",
+        "holdout_id={} mode={} alpha_num={} alpha_den={} beta={} gamma={} continuity_pre={} continuity_post={} continuity_delta={} external_delta={} region_delta={} anchor_delta={} support_signal={} contradiction_signal={} contradiction_pressure_ratio_ppm={} contradiction_penalty={} region_reward={} anchor_reward={} continuity_rebased={} escalation_handoff={} phase67_escalation_marker={} supervisor_intensity={} problematic={} effectiveness={} short_window_baseline={} medium_window_baseline={} long_window_baseline={}",
         telemetry.holdout_id,
         telemetry.mode,
         PHASE66_REBASE_ALPHA_NUMERATOR,
@@ -575,6 +593,9 @@ fn phase66_telemetry_line(telemetry: &Phase66Telemetry) -> String {
         telemetry.continuity_rebased,
         telemetry.escalation_handoff,
         telemetry.phase67_escalation_marker,
+        telemetry.supervisor_intensity,
+        telemetry.problematic,
+        telemetry.effectiveness,
         telemetry.short_window_baseline,
         telemetry.medium_window_baseline,
         telemetry.long_window_baseline,

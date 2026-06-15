@@ -173,6 +173,22 @@ fn parse_phase66_final_continuity_metrics(line: &str) -> (i32, i32) {
     (continuity_delta, continuity_rebased)
 }
 
+fn parse_phase66_final_i32_field(line: &str, field: &str) -> i32 {
+    let final_segment = line
+        .split(" final_telemetry=")
+        .nth(1)
+        .unwrap_or_else(|| panic!("missing final_telemetry segment: {}", line));
+    parse_i32_field(final_segment, field)
+}
+
+fn parse_phase66_final_bool_field(line: &str, field: &str) -> bool {
+    let final_segment = line
+        .split(" final_telemetry=")
+        .nth(1)
+        .unwrap_or_else(|| panic!("missing final_telemetry segment: {}", line));
+    parse_bool_field(final_segment, field)
+}
+
 fn parse_phase63_final_plan(line: &str) -> String {
     line.split(" final_plan=")
         .nth(1)
@@ -541,7 +557,16 @@ fn gate_v6d_phase66_emits_phase67_marker_when_escalation_handoff_true() {
 #[test]
 fn gate_v6e_phase67_stub_emits_marker_context_and_ready_fields() {
     let phase66_log = run_curriculum_harness_with_phase62_kind_and_handoff("phase66", true);
+    let phase66_line = latest_phase66_holdout_line(&phase66_log, "holdout_04");
     let holdout_line = latest_phase67_holdout_line(&phase66_log, "holdout_04");
+
+    let problematic = parse_phase66_final_bool_field(&phase66_line, "problematic");
+    let effectiveness = parse_phase66_final_i32_field(&phase66_line, "effectiveness");
+    let expected_context = if problematic && effectiveness >= 0 {
+        "continuity_insensitive"
+    } else {
+        "none"
+    };
 
     assert!(
         holdout_line.contains("phase67_holdout_telemetry"),
@@ -554,8 +579,8 @@ fn gate_v6e_phase67_stub_emits_marker_context_and_ready_fields() {
         holdout_line
     );
     assert!(
-        holdout_line.contains("phase67_semantic_context=empty"),
-        "missing phase67 semantic context stub in telemetry: {}",
+        holdout_line.contains(&format!("phase67_semantic_context={}", expected_context)),
+        "phase67 semantic context mapping mismatch in telemetry: {}",
         holdout_line
     );
     assert!(
