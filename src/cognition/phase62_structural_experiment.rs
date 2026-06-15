@@ -54,6 +54,7 @@ const PHASE67_TELEMETRY: &str = "GORT_PHASE67_TELEMETRY";
 const PHASE70_TELEMETRY: &str = "GORT_PHASE70_TELEMETRY";
 const PHASE70_ADJUSTMENT_LOG: &str = "GORT_PHASE70_ADJUSTMENT_LOG";
 const PHASE80_FRAME_TELEMETRY: &str = "GORT_PHASE80_FRAME_TELEMETRY";
+const PHASE80_EPISODE_TELEMETRY: &str = "GORT_PHASE80_EPISODE_TELEMETRY";
 const PHASE70_CONTINUITY_PRESSURE_BOOST: &str = "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST";
 const PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST: &str = "continuity_pressure_boost";
 const PHASE70_ADJUSTMENT_DELTA: i32 = 1;
@@ -324,6 +325,26 @@ pub struct Phase80FrameTransitionEvent {
     pub exit_allowed: bool,
     pub continuity_preserved: bool,
     pub transition_reason: String,
+}
+
+/// One deterministic step in a multi-frame episode trace.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80EpisodeStep {
+    pub step_index: usize,
+    pub holdout_id: String,
+    pub from_frame_id: String,
+    pub to_frame_id: String,
+    pub continuity_preserved: bool,
+    pub transition_reason: String,
+}
+
+/// Replay-stable multi-frame episode trace produced from canonical transitions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80EpisodeTrace {
+    pub episode_id: String,
+    pub steps: Vec<Phase80EpisodeStep>,
+    pub frame_count: usize,
+    pub boundary_continuity_preserved: bool,
 }
 
 /// Canonical structural-parameter descriptor for Phase 7.x.
@@ -758,6 +779,133 @@ pub fn phase80_emit_frame_transition_telemetry(
         .collect::<Vec<_>>()
         .join("|");
     env::set_var(PHASE80_FRAME_TELEMETRY, &line);
+    line
+}
+
+/// Enforce deterministic transition sequencing rules for a frame-local episode:
+/// - exactly one transition per frame
+/// - first transition starts at phase80_origin
+/// - each transition target matches canonical frame order
+/// - each transition source matches the previous transition target
+/// - entry must be allowed for every step
+pub fn phase80_sequence_frame_transitions(
+    frame_registry: &Phase80FrameLocalParameterRegistry,
+    transitions: &[Phase80FrameTransitionEvent],
+) -> Result<Vec<Phase80FrameTransitionEvent>, String> {
+    if transitions.len() != frame_registry.frames.len() {
+        return Err(format!(
+            "transition/frame cardinality mismatch: {} transitions for {} frames",
+            transitions.len(),
+            frame_registry.frames.len()
+        ));
+    }
+
+    let mut previous_target = "phase80_origin".to_string();
+    for (index, transition) in transitions.iter().enumerate() {
+        let expected_target = &frame_registry.frames[index].frame_id;
+        if &transition.to_frame_id != expected_target {
+            return Err(format!(
+                "transition target mismatch at step {}: expected {} got {}",
+                index + 1,
+                expected_target,
+                transition.to_frame_id
+            ));
+        }
+
+        if transition.from_frame_id != previous_target {
+            return Err(format!(
+                "transition source mismatch at step {}: expected {} got {}",
+                index + 1,
+                previous_target,
+                transition.from_frame_id
+            ));
+        }
+
+        if !transition.entry_allowed {
+            return Err(format!(
+                "transition entry not allowed at step {} for {}",
+                index + 1,
+                transition.to_frame_id
+            ));
+        }
+
+        previous_target = transition.to_frame_id.clone();
+    }
+
+    Ok(transitions.to_vec())
+}
+
+/// Execute one deterministic multi-frame episode from Phase70 adjustment history.
+pub fn phase80_run_multiframe_episode(
+    episode_id: &str,
+    log: &Phase70AdjustmentLog,
+    parameter_registry: &Phase70StructuralParameterRegistry,
+) -> Result<Phase80EpisodeTrace, String> {
+    let frame_registry = phase80_build_frame_local_parameter_registry(log, parameter_registry)?;
+    let transitions = phase80_scaffold_frame_transitions(&frame_registry, parameter_registry)?;
+    let sequenced = phase80_sequence_frame_transitions(&frame_registry, &transitions)?;
+
+    let steps = sequenced
+        .iter()
+        .enumerate()
+        .map(|(index, transition)| Phase80EpisodeStep {
+            step_index: index + 1,
+            holdout_id: frame_registry.frames[index].holdout_id.clone(),
+            from_frame_id: transition.from_frame_id.clone(),
+            to_frame_id: transition.to_frame_id.clone(),
+            continuity_preserved: transition.continuity_preserved,
+            transition_reason: transition.transition_reason.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    let boundary_continuity_preserved = sequenced
+        .first()
+        .map(|first| first.entry_allowed && first.from_frame_id == "phase80_origin")
+        .unwrap_or(true)
+        && sequenced.last().map(|last| last.exit_allowed).unwrap_or(true);
+
+    if !boundary_continuity_preserved {
+        return Err("episode boundary continuity violated".to_string());
+    }
+
+    Ok(Phase80EpisodeTrace {
+        episode_id: episode_id.to_string(),
+        frame_count: frame_registry.frames.len(),
+        steps,
+        boundary_continuity_preserved,
+    })
+}
+
+fn phase80_episode_step_line(step: &Phase80EpisodeStep) -> String {
+    format!(
+        "step={} holdout_id={} from_frame_id={} to_frame_id={} continuity_preserved={} transition_reason={}",
+        step.step_index,
+        step.holdout_id,
+        step.from_frame_id,
+        step.to_frame_id,
+        step.continuity_preserved,
+        step.transition_reason,
+    )
+}
+
+/// Emit canonical per-episode frame-level telemetry in deterministic step order.
+pub fn phase80_emit_episode_telemetry(trace: &Phase80EpisodeTrace) -> String {
+    let steps = trace
+        .steps
+        .iter()
+        .map(phase80_episode_step_line)
+        .collect::<Vec<_>>()
+        .join(";");
+
+    let line = format!(
+        "episode_id={} frame_count={} boundary_continuity_preserved={} steps={}",
+        trace.episode_id,
+        trace.frame_count,
+        trace.boundary_continuity_preserved,
+        steps,
+    );
+
+    env::set_var(PHASE80_EPISODE_TELEMETRY, &line);
     line
 }
 
@@ -4856,6 +5004,92 @@ mod tests {
         let err = phase80_scaffold_frame_transitions(&frame_registry, &parameter_registry)
             .expect_err("jumping by more than one step should violate continuity invariants");
         assert!(err.contains("continuity jump exceeded"));
+    }
+
+    #[test]
+    fn phase80_episode_runner_produces_replay_stable_trace() {
+        let parameter_registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "none".to_string(),
+                    adjustment_applied: false,
+                    pre_value: 1,
+                    post_value: 1,
+                    delta: 0,
+                    inverse_delta: 0,
+                },
+            ],
+        };
+
+        let trace_a = phase80_run_multiframe_episode("episode_holdout_pair", &log, &parameter_registry)
+            .expect("episode run should succeed");
+        let trace_b = phase80_run_multiframe_episode("episode_holdout_pair", &log, &parameter_registry)
+            .expect("episode run should succeed");
+
+        let telemetry_a = phase80_emit_episode_telemetry(&trace_a);
+        let telemetry_b = phase80_emit_episode_telemetry(&trace_b);
+
+        assert_eq!(trace_a, trace_b);
+        assert_eq!(telemetry_a, telemetry_b);
+        assert_eq!(trace_a.steps.len(), 2);
+        assert!(trace_a.boundary_continuity_preserved);
+        assert_eq!(trace_a.steps[0].from_frame_id, "phase80_origin");
+    }
+
+    #[test]
+    fn phase80_transition_sequence_rules_reject_non_chain_source() {
+        let frame_registry = Phase80FrameLocalParameterRegistry {
+            frames: vec![
+                Phase80FrameParameterSnapshot {
+                    frame_id: "phase80_frame_0001".to_string(),
+                    holdout_id: "holdout_01_recovery".to_string(),
+                    parameters: vec![],
+                },
+                Phase80FrameParameterSnapshot {
+                    frame_id: "phase80_frame_0002".to_string(),
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameters: vec![],
+                },
+            ],
+        };
+
+        let bad_transitions = vec![
+            Phase80FrameTransitionEvent {
+                from_frame_id: "phase80_origin".to_string(),
+                to_frame_id: "phase80_frame_0001".to_string(),
+                entry_allowed: true,
+                exit_allowed: true,
+                continuity_preserved: true,
+                transition_reason: "bounded_continuity".to_string(),
+            },
+            Phase80FrameTransitionEvent {
+                from_frame_id: "phase80_origin".to_string(),
+                to_frame_id: "phase80_frame_0002".to_string(),
+                entry_allowed: true,
+                exit_allowed: true,
+                continuity_preserved: true,
+                transition_reason: "bounded_continuity".to_string(),
+            },
+        ];
+
+        let err = phase80_sequence_frame_transitions(&frame_registry, &bad_transitions)
+            .expect_err("sequence should reject non-chain source");
+        assert!(err.contains("transition source mismatch"));
     }
 }
 
