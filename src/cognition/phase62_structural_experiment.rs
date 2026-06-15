@@ -293,6 +293,21 @@ pub struct Phase80MultiFrameStructuralContext {
     pub cross_frame_continuity_preserved: bool,
 }
 
+/// Canonical named parameter value inside a frame-local snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80FrameParameterValue {
+    pub parameter_name: String,
+    pub effective_value: i32,
+}
+
+/// Deterministic effective parameter view for a single frame.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase80FrameParameterSnapshot {
+    pub frame_id: String,
+    pub holdout_id: String,
+    pub parameters: Vec<Phase80FrameParameterValue>,
+}
+
 /// Canonical structural-parameter descriptor for Phase 7.x.
 /// The registry is deterministic and defines bounded, reversible adjustments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -462,6 +477,62 @@ pub fn phase80_scaffold_multiframe_structural_context(
         total_local_delta,
         cross_frame_continuity_preserved,
     })
+}
+
+fn phase80_canonical_baseline_parameter_values(
+    registry: &Phase70StructuralParameterRegistry,
+) -> BTreeMap<String, i32> {
+    let mut baseline = BTreeMap::new();
+    for parameter in &registry.parameters {
+        baseline.insert(parameter.name.clone(), parameter.min_value);
+    }
+    baseline
+}
+
+fn phase80_merge_parameter_overrides(
+    base: &BTreeMap<String, i32>,
+    overrides: &BTreeMap<String, i32>,
+) -> BTreeMap<String, i32> {
+    let mut merged = base.clone();
+    for (parameter_name, value) in overrides {
+        merged.insert(parameter_name.clone(), *value);
+    }
+    merged
+}
+
+/// Build deterministic frame-local effective parameter snapshots using a
+/// canonical merge chain: global baseline -> previous frame state -> frame override.
+pub fn phase80_scaffold_frame_parameter_snapshots(
+    log: &Phase70AdjustmentLog,
+    registry: &Phase70StructuralParameterRegistry,
+) -> Result<Vec<Phase80FrameParameterSnapshot>, String> {
+    phase70_validate_adjustment_log_invariants(log, registry)?;
+
+    let mut effective_state = phase80_canonical_baseline_parameter_values(registry);
+    let mut snapshots = Vec::with_capacity(log.entries.len());
+
+    for entry in &log.entries {
+        let mut overrides = BTreeMap::new();
+        overrides.insert(entry.parameter_name.clone(), entry.post_value);
+        effective_state = phase80_merge_parameter_overrides(&effective_state, &overrides);
+
+        let parameters = registry
+            .parameters
+            .iter()
+            .map(|parameter| Phase80FrameParameterValue {
+                parameter_name: parameter.name.clone(),
+                effective_value: *effective_state.get(&parameter.name).unwrap_or(&parameter.min_value),
+            })
+            .collect::<Vec<_>>();
+
+        snapshots.push(Phase80FrameParameterSnapshot {
+            frame_id: format!("phase80_frame_{:04}", entry.sequence),
+            holdout_id: entry.holdout_id.clone(),
+            parameters,
+        });
+    }
+
+    Ok(snapshots)
 }
 
 fn phase70_apply_parameter_step(
@@ -4281,6 +4352,113 @@ mod tests {
         assert_eq!(ctx.total_local_delta, 2);
         assert_eq!(ctx.frames[0].continuity_delta_from_previous_frame, 0);
         assert_eq!(ctx.frames[1].continuity_delta_from_previous_frame, 1);
+    }
+
+    #[test]
+    fn phase80_frame_parameter_snapshots_use_deterministic_merge_chain() {
+        let registry = Phase70StructuralParameterRegistry {
+            parameters: vec![
+                Phase70StructuralParameterSpec {
+                    name: "zeta_pressure".to_string(),
+                    env_key: "GORT_PHASE70_ZETA_PRESSURE".to_string(),
+                    min_value: 0,
+                    max_value: 3,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70StructuralParameterSpec {
+                    name: "alpha_pressure".to_string(),
+                    env_key: "GORT_PHASE70_ALPHA_PRESSURE".to_string(),
+                    min_value: 0,
+                    max_value: 3,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_02_recovery".to_string(),
+                    parameter_name: "alpha_pressure".to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_03_recovery".to_string(),
+                    parameter_name: "zeta_pressure".to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+
+        let snapshots = phase80_scaffold_frame_parameter_snapshots(&log, &registry)
+            .expect("phase80 frame snapshots should scaffold");
+
+        assert_eq!(snapshots.len(), 2);
+
+        assert_eq!(snapshots[0].parameters.len(), 2);
+        assert_eq!(snapshots[0].parameters[0].parameter_name, "zeta_pressure");
+        assert_eq!(snapshots[0].parameters[0].effective_value, 0);
+        assert_eq!(snapshots[0].parameters[1].parameter_name, "alpha_pressure");
+        assert_eq!(snapshots[0].parameters[1].effective_value, 1);
+
+        assert_eq!(snapshots[1].parameters.len(), 2);
+        assert_eq!(snapshots[1].parameters[0].parameter_name, "zeta_pressure");
+        assert_eq!(snapshots[1].parameters[0].effective_value, 1);
+        assert_eq!(snapshots[1].parameters[1].parameter_name, "alpha_pressure");
+        assert_eq!(snapshots[1].parameters[1].effective_value, 1);
+    }
+
+    #[test]
+    fn phase80_frame_parameter_snapshots_are_replay_stable() {
+        let registry = Phase70StructuralParameterRegistry::canonical();
+        let log = Phase70AdjustmentLog {
+            entries: vec![
+                Phase70AdjustmentLogEntry {
+                    sequence: 1,
+                    holdout_id: "holdout_04_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 0,
+                    post_value: 1,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+                Phase70AdjustmentLogEntry {
+                    sequence: 2,
+                    holdout_id: "holdout_04_recovery".to_string(),
+                    parameter_name: PHASE70_PARAM_CONTINUITY_PRESSURE_BOOST.to_string(),
+                    semantic_context_used: "continuity_insensitive".to_string(),
+                    adjustment_applied: true,
+                    pre_value: 1,
+                    post_value: 2,
+                    delta: 1,
+                    inverse_delta: -1,
+                },
+            ],
+        };
+
+        let snapshots_a = phase80_scaffold_frame_parameter_snapshots(&log, &registry)
+            .expect("phase80 frame snapshots should scaffold");
+        let snapshots_b = phase80_scaffold_frame_parameter_snapshots(&log, &registry)
+            .expect("phase80 frame snapshots should scaffold");
+
+        assert_eq!(snapshots_a, snapshots_b);
+        assert_eq!(snapshots_a[0].frame_id, "phase80_frame_0001");
+        assert_eq!(snapshots_a[1].frame_id, "phase80_frame_0002");
     }
 }
 
