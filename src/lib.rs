@@ -46,6 +46,7 @@ pub mod cognition {
     pub mod multiframe;
     pub mod phase61_structural_recovery;
     pub mod phase62_structural_experiment;
+    pub mod phase90_geometric_cognitive_seed;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -114,6 +115,11 @@ pub mod cognition {
         phase80_validate_frame_continuity_invariants,
         phase70_validate_adjustment_log_invariants,
         scaffold_phase70_structural_adjustment,
+    };
+    pub use phase90_geometric_cognitive_seed::{
+        Phase90GeometricCognitiveSeed,
+        phase90_form_geometry_seed_from_integration_hook,
+        phase90_emit_seed_formation_telemetry,
     };
 }
 
@@ -226,6 +232,9 @@ pub use cognition::{
     phase70_validate_adjustment_log_invariants,
     scaffold_phase70_structural_adjustment,
     apply_phase62_structural_experiment,
+    Phase90GeometricCognitiveSeed,
+    phase90_form_geometry_seed_from_integration_hook,
+    phase90_emit_seed_formation_telemetry,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,

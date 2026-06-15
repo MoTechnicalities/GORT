@@ -8,6 +8,7 @@ use gort::{
     phase80_run_multiframe_episode, phase80_scaffold_frame_parameter_snapshots,
     phase80_scaffold_frame_transitions, phase80_sequence_frame_transitions,
     phase80_validate_frame_continuity_invariants,
+    phase90_form_geometry_seed_from_integration_hook, phase90_emit_seed_formation_telemetry,
 };
 
 const PARAM: &str = "continuity_pressure_boost";
@@ -448,4 +449,105 @@ fn gauntlet_slice6_gate_d_integration_telemetry_is_replay_stable_over_50_runs() 
         assert_eq!(hook, baseline_hook);
         assert_eq!(telemetry, baseline_telemetry);
     }
+}
+
+// ============ Phase 9 Slice 1: Geometric Cognitive Seed Formation ============
+
+#[test]
+fn gauntlet_phase9_slice1_seed_formation_from_integration_hook() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9_a", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9_b", "none", false, 1, 1, 0),
+            entry(3, "holdout_p9_c", "none", true, 1, 2, 1),
+        ],
+    };
+
+    let trace = phase80_run_multiframe_episode("gauntlet_p9s1", &log, &registry).expect("trace");
+    let deltas =
+        phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry).expect("deltas");
+    let summary =
+        phase80_summarize_episode_structural_integration(&trace, &log, &registry).expect("summary");
+    let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+
+    // Phase 9 Slice 1: form seed
+    let seed = phase90_form_geometry_seed_from_integration_hook(&hook, &summary, &deltas);
+
+    assert_eq!(seed.episode_id, "gauntlet_p9s1");
+    assert!(seed.geometry_well_formed);
+    assert!(!seed.seed_content_hash.is_empty());
+    assert_eq!(seed.transition_count, deltas.len());
+    assert!(!seed.semantic_anchor_contexts.is_empty());
+    assert_eq!(seed.source_frame_count, 3);
+    assert_eq!(seed.continuity_weight_percent, hook.continuity_weight_percent);
+}
+
+#[test]
+fn gauntlet_phase9_slice1_seed_geometry_is_deterministic_over_100_replays() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9_d", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9_e", "none", true, 1, 2, 1),
+            entry(3, "holdout_p9_f", "none", false, 2, 2, 0),
+        ],
+    };
+
+    let mut seed_signatures = Vec::new();
+
+    for _ in 0..100 {
+        let trace = phase80_run_multiframe_episode("gauntlet_p9s1_replay", &log, &registry)
+            .expect("trace");
+        let deltas = phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry)
+            .expect("deltas");
+        let summary = phase80_summarize_episode_structural_integration(&trace, &log, &registry)
+            .expect("summary");
+        let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+        let seed = phase90_form_geometry_seed_from_integration_hook(&hook, &summary, &deltas);
+
+        seed_signatures.push(seed.geometry_signature.clone());
+    }
+
+    let first_sig = &seed_signatures[0];
+    for (idx, sig) in seed_signatures.iter().enumerate() {
+        assert_eq!(
+            sig, first_sig,
+            "seed signature must be identical at replay {}: {} vs {}",
+            idx + 1,
+            sig,
+            first_sig
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase9_slice1_seed_telemetry_is_canonical() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let log = Phase70AdjustmentLog {
+        entries: vec![
+            entry(1, "holdout_p9_g", "continuity_insensitive", true, 0, 1, 1),
+            entry(2, "holdout_p9_h", "none", false, 1, 1, 0),
+        ],
+    };
+
+    let trace = phase80_run_multiframe_episode("gauntlet_p9s1_telemetry", &log, &registry)
+        .expect("trace");
+    let deltas =
+        phase80_integrate_cross_frame_structural_deltas(&trace, &log, &registry).expect("deltas");
+    let summary =
+        phase80_summarize_episode_structural_integration(&trace, &log, &registry).expect("summary");
+    let hook = phase80_build_phase9_integration_hook(&summary, &deltas);
+    let seed = phase90_form_geometry_seed_from_integration_hook(&hook, &summary, &deltas);
+
+    let telemetry_1 = phase90_emit_seed_formation_telemetry(&seed);
+    let telemetry_2 = phase90_emit_seed_formation_telemetry(&seed);
+
+    assert_eq!(telemetry_1, telemetry_2);
+    assert!(telemetry_1.contains("episode_id=gauntlet_p9s1_telemetry"));
+    assert!(telemetry_1.contains("geometry_signature="));
+    assert!(telemetry_1.contains("semantic_anchors="));
+    assert!(telemetry_1.contains("continuity_weight="));
+    assert!(telemetry_1.contains("transition_count="));
+    assert!(telemetry_1.contains("well_formed=true"));
 }
