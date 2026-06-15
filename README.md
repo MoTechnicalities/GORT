@@ -1023,6 +1023,87 @@ Phase 6.6 continuity-rebase constants (frozen v1):
     - Applied only in Phase 6.6 telemetry (`GORT_PHASE62_KIND=phase66`) during this stage.
     - No constraint mutation or behavioral routing change is introduced by this formula pass.
 
+### Phase 6.7: Semantic Escalation Context (Telemetry-First, Complete)
+✅ `phase67_escalation_marker_in` derived from Phase66 escalation handoff
+✅ `phase67_semantic_context` derived deterministically from Phase66 `problematic` and `effectiveness` signals
+✅ Context mapping: `continuity_insensitive` when `problematic && effectiveness >= 0`; `none` otherwise
+✅ Phase66 telemetry extended to expose `supervisor_intensity`, `problematic`, `effectiveness` as auditable source signals
+✅ Acceptance gate enforces end-to-end replay-stable context derivation
+
+Phase 6.7 is the **first time GORT has a semantic reason code for escalation** — the seed of Phase 7.x structural rewrite logic.
+
+---
+
+### Phase 7.x: Higher-Order Geometric Cognition (Design Brief — Next Milestone)
+
+**Purpose:** Phase 7.x introduces the first true cognitive behavior in GORT — structural self-modification driven by relevance, prioritization, and context, all grounded in geometric invariants.
+
+Phase 6.x built the substrate. Phase 7.x is where GORT begins to use that substrate to change itself.
+
+**Governing Axiom (from `ARCHITECTURE_AXIOMS.md`):**
+
+> Cognition in GORT is a higher-order geometric process.
+> All relevance, prioritization, context, and correctness must arise from geometric invariants, not symbolic heuristics.
+> Logic is necessary, but cognition is geometric.
+
+**Mission Statement:**
+
+> Introduce the first deterministic, reversible, geometry-grounded structural adjustment rule that modifies GORT's internal parameters in response to Phase 6.7 semantic context.
+
+#### What Phase 7.x Must Produce
+
+**1. A Structural Adjustment Rule** — a single minimal deterministic rule of the form:
+
+> If `phase67_escalation_marker_in == true`, and `semantic_context == X`, then adjust structural parameter P by Δ.
+
+Constraints: Δ must be small, bounded, reversible, and geometrically meaningful. P must be a geometric parameter, not a symbolic one. Examples of valid P candidates: continuity_rebase coefficient, contradiction pressure threshold, supervisor_intensity scaling factor, topology-guided repair weight.
+
+**2. A Semantic-to-Adjustment Mapping** — explicit, deterministic, test-locked:
+
+| Semantic Context | Structural Adjustment |
+|---|---|
+| `continuity_insensitive` | Increase continuity pressure by bounded Δ |
+| `none` | No adjustment |
+
+**3. A Reversible Adjustment Log** — every structural modification must be recorded, reversible, and auditable. This is the first step toward geometric memory.
+
+#### What Phase 7.x Must NOT Do
+- No new operators or routing
+- No probabilistic behavior
+- No symbolic heuristics
+- No non-geometric shortcuts
+- No multi-frame reasoning (Phase 8.x)
+- No emergent geometry (Phase 9.x)
+
+Phase 7.x is structural — not semantic, not behavioral.
+
+#### Phase 7.x Acceptance Criteria
+
+| Criterion | Requirement |
+|---|---|
+| **Deterministic adjustment** | Identical Phase 6.7 telemetry always produces the same Δ |
+| **Replay stability** | Replaying the same episode yields identical structural adjustments |
+| **No behavioral mutation** | Operator selection, routing, semantic detection, and action logic unchanged |
+| **Telemetry completeness** | Emits: `adjustment_applied`, `parameter_name`, `delta`, `semantic_context_used`, `pre_value`, `post_value` |
+| **Reversibility** | A deterministic inverse exists for every adjustment |
+
+#### Phase 7.x Output
+At the end of Phase 7.x, GORT will have its first **self-modifying structural rule**, a **geometric adjustment mechanism**, a **semantic-to-structural mapping**, a **reversible adjustment log**, and a **stable cognitive identity contract**.
+
+This is the moment GORT becomes a **self-correcting geometric cognition engine**.
+
+---
+
+### Phase 8.x: Choice-Driven Structural Adaptation (Planned)
+- Multi-frame reasoning frames as geometric coordinate systems
+- Heuristics derived from geometric invariants, not ad-hoc rules
+- Long-horizon adaptive choice grounded in accumulated geometric context
+
+### Phase 9.x: Structure-Driven Cognitive Improvement (Planned)
+- Emergent cognition from geometric resonance, not statistical approximation
+- Self-model formation from long-horizon geometric trace
+- Cognitive improvement as geometric convergence
+
 ## Integration with UGC-Model
 
 GORT depends on the geometric representations defined in UGC-Model (`CSIF`, `RWIF`, resonance geometry) but takes them forward into CPU-native implementation:
