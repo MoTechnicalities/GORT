@@ -29,6 +29,7 @@ use gort::{
     phase10_emit_top_level_acceptance_telemetry,
     phase10_run_slice7_multicycle_replay_acceptance_stage,
     phase10_emit_slice7_multicycle_telemetry,
+    Phase11ConvergenceAcceptancePolicy,
     phase11_run_multi_loop_convergence_stage,
     phase11_emit_multi_loop_convergence_telemetry,
 };
@@ -2699,6 +2700,7 @@ fn gauntlet_phase11_multi_loop_convergence_is_well_formed() {
         &registry,
         &Phase10Slice2RoutingAcceptancePolicy::canonical(),
         &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        &Phase11ConvergenceAcceptancePolicy::canonical(),
         5,
         4,
     )
@@ -2708,6 +2710,10 @@ fn gauntlet_phase11_multi_loop_convergence_is_well_formed() {
     assert_eq!(convergence.loop_count, 5);
     assert_eq!(convergence.cycle_count_per_loop, 4);
     assert_eq!(convergence.loop_acceptance_hashes.len(), 5);
+    assert_eq!(convergence.convergence_metrics.acceptance_hash_stability_percent, 100);
+    assert_eq!(convergence.convergence_metrics.terminal_plan_stability_percent, 100);
+    assert_eq!(convergence.convergence_metrics.terminal_seed_stability_percent, 100);
+    assert_eq!(convergence.convergence_metrics.convergence_radius, 0);
 }
 
 #[test]
@@ -2738,6 +2744,7 @@ fn gauntlet_phase11_multi_loop_convergence_is_replay_stable() {
         &registry,
         &Phase10Slice2RoutingAcceptancePolicy::canonical(),
         &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        &Phase11ConvergenceAcceptancePolicy::canonical(),
         4,
         4,
     )
@@ -2748,6 +2755,7 @@ fn gauntlet_phase11_multi_loop_convergence_is_replay_stable() {
         &registry,
         &Phase10Slice2RoutingAcceptancePolicy::canonical(),
         &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        &Phase11ConvergenceAcceptancePolicy::canonical(),
         4,
         4,
     )
@@ -2784,6 +2792,7 @@ fn gauntlet_phase11_multi_loop_convergence_rejects_low_loop_count_with_canonical
         &registry,
         &Phase10Slice2RoutingAcceptancePolicy::canonical(),
         &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        &Phase11ConvergenceAcceptancePolicy::canonical(),
         1,
         4,
     )
@@ -2820,6 +2829,7 @@ fn gauntlet_phase11_multi_loop_convergence_telemetry_is_replay_stable() {
         &registry,
         &Phase10Slice2RoutingAcceptancePolicy::canonical(),
         &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        &Phase11ConvergenceAcceptancePolicy::canonical(),
         3,
         3,
     )
@@ -2832,6 +2842,54 @@ fn gauntlet_phase11_multi_loop_convergence_telemetry_is_replay_stable() {
     assert!(telemetry_a.contains("baseline_plan_hash="));
     assert!(telemetry_a.contains("loop_count=3"));
     assert!(telemetry_a.contains("cycle_count_per_loop=3"));
+    assert!(telemetry_a.contains("acceptance_hash_stability=100"));
+    assert!(telemetry_a.contains("terminal_plan_stability=100"));
+    assert!(telemetry_a.contains("terminal_seed_stability=100"));
+    assert!(telemetry_a.contains("convergence_radius=0"));
     assert!(telemetry_a.contains("convergence_hash="));
     assert!(telemetry_a.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase11_multi_loop_convergence_rejects_threshold_breach() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p11_threshold_reject",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11z1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11z2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11z3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11z4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let strict = Phase11ConvergenceAcceptancePolicy {
+        min_acceptance_hash_stability_percent: 101,
+        min_terminal_plan_stability_percent: 100,
+        min_terminal_seed_stability_percent: 100,
+        max_convergence_radius: 0,
+    };
+
+    let err = phase11_run_multi_loop_convergence_stage(
+        "gauntlet_phase11_multi_loop_threshold_reject",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        &strict,
+        3,
+        3,
+    )
+    .expect_err("strict policy should reject below-threshold stability");
+
+    assert_eq!(err, "phase11_reject_acceptance_hash_stability_below_min");
 }

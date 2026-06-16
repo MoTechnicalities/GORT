@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gort:phase80-gauntlet-summary:v1-experimental",
+  "title": "GORT Phase80 Gauntlet Summary v1-experimental",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "effective_schema_uri",
+    "effective_schema_source",
+    "manifest_signature",
+    "checks",
+    "overall",
+    "phase62_integration_timeout_seconds",
+    "deep_time"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "v1-experimental"
+    },
+    "effective_schema_uri": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_schema_source": {
+      "type": "string",
+      "enum": ["version", "override", "version-fallback"]
+    },
+    "manifest_signature": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check", "result"],
+        "properties": {
+          "check": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result": {
+            "type": "string",
+            "enum": ["PASS", "FAIL"]
+          }
+        }
+      }
+    },
+    "overall": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "phase62_integration_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "regression_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["regression_detected", "regression_messages", "regression_fields", "baseline_schema_version", "current_schema_version"],
+      "properties": {
+        "regression_detected": {
+          "type": "boolean"
+        },
+        "regression_messages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "regression_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "baseline_schema_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_schema_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "deep_time": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "min_loop_count",
+            "max_loop_count",
+            "loop_step",
+            "cycles_per_loop",
+            "drift_verdict",
+            "drift_window",
+            "drift_window_machine"
+          ],
+          "properties": {
+            "enabled": {
+              "const": true
+            },
+            "min_loop_count": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "max_loop_count": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "loop_step": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cycles_per_loop": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "drift_verdict": {
+              "type": "string",
+              "minLength": 1
+            },
+            "drift_window": {
+              "type": "string",
+              "minLength": 1
+            },
+            "drift_window_machine": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["min_loop_count", "max_loop_count", "loop_step"],
+              "properties": {
+                "min_loop_count": {
+                  "type": "integer",
+                  "minimum": 2
+                },
+                "max_loop_count": {
+                  "type": "integer",
+                  "minimum": 2
+                },
+                "loop_step": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

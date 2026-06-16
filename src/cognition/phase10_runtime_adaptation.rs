@@ -32,6 +32,8 @@ const PHASE10_SLICE7_MULTICYCLE_TELEMETRY: &str =
     "GORT_PHASE10_SLICE7_MULTICYCLE_TELEMETRY";
 const PHASE11_MULTI_LOOP_CONVERGENCE_TELEMETRY: &str =
     "GORT_PHASE11_MULTI_LOOP_CONVERGENCE_TELEMETRY";
+const PHASE11_LONG_HORIZON_CONVERGENCE_TELEMETRY: &str =
+    "GORT_PHASE11_LONG_HORIZON_CONVERGENCE_TELEMETRY";
 const PHASE10_TOP_LEVEL_REJECT_REPLAY_COUNT_TOO_LOW: &str =
     "phase10_top_level_reject_replay_count_too_low";
 const PHASE10_TOP_LEVEL_REJECT_FEEDBACK_NOT_WELL_FORMED: &str =
@@ -66,6 +68,18 @@ const PHASE11_REJECT_CONTINUITY_WEIGHT_DRIFT: &str =
     "phase11_reject_continuity_weight_drift";
 const PHASE11_REJECT_OPERATOR_WEIGHT_DRIFT: &str =
     "phase11_reject_operator_weight_drift";
+const PHASE11_REJECT_ACCEPTANCE_HASH_STABILITY_BELOW_MIN: &str =
+    "phase11_reject_acceptance_hash_stability_below_min";
+const PHASE11_REJECT_TERMINAL_PLAN_STABILITY_BELOW_MIN: &str =
+    "phase11_reject_terminal_plan_stability_below_min";
+const PHASE11_REJECT_TERMINAL_SEED_STABILITY_BELOW_MIN: &str =
+    "phase11_reject_terminal_seed_stability_below_min";
+const PHASE11_REJECT_CONVERGENCE_RADIUS_ABOVE_MAX: &str =
+    "phase11_reject_convergence_radius_above_max";
+const PHASE11_LONG_HORIZON_REJECT_LOOP_RANGE_INVALID: &str =
+    "phase11_long_horizon_reject_loop_range_invalid";
+const PHASE11_LONG_HORIZON_REJECT_LOOP_STEP_INVALID: &str =
+    "phase11_long_horizon_reject_loop_step_invalid";
 const PHASE10_SLICE4_REJECT_INTEGRATION_NOT_WELL_FORMED: &str =
     "phase10_slice4_reject_integration_not_well_formed";
 const PHASE10_SLICE4_REJECT_HASH_MISMATCH: &str =
@@ -190,9 +204,53 @@ pub struct Phase11MultiLoopConvergenceStage {
     pub baseline_transition_count: usize,
     pub baseline_continuity_weight_percent: u8,
     pub baseline_operator_weight_percent: u8,
+    pub convergence_metrics: Phase11ConvergenceMetrics,
     pub convergence_signature: String,
     pub convergence_profile_hash: String,
     pub convergence_well_formed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase11LongHorizonLoopObservation {
+    pub loop_count: usize,
+    pub convergence_profile_hash: String,
+    pub convergence_metrics: Phase11ConvergenceMetrics,
+    pub convergence_well_formed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase11LongHorizonConvergenceHarness {
+    pub baseline_operator_plan_hash: String,
+    pub min_loop_count: usize,
+    pub max_loop_count: usize,
+    pub loop_step: usize,
+    pub cycle_count_per_loop: usize,
+    pub observations: Vec<Phase11LongHorizonLoopObservation>,
+    pub profile_hash_stability_percent: u8,
+    pub max_convergence_radius: u16,
+    pub harness_signature: String,
+    pub harness_profile_hash: String,
+    pub harness_well_formed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase11ConvergenceMetrics {
+    pub acceptance_hash_stability_percent: u8,
+    pub terminal_plan_stability_percent: u8,
+    pub terminal_seed_stability_percent: u8,
+    pub operator_weight_stabilization_percent: u8,
+    pub continuity_weight_stabilization_percent: u8,
+    pub transition_count_stabilization_percent: u8,
+    pub convergence_radius: u16,
+    pub convergence_well_formed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Phase11ConvergenceAcceptancePolicy {
+    pub min_acceptance_hash_stability_percent: u8,
+    pub min_terminal_plan_stability_percent: u8,
+    pub min_terminal_seed_stability_percent: u8,
+    pub max_convergence_radius: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,6 +275,17 @@ impl Phase10Slice4RuntimeContinuityPolicy {
             min_operator_weight_percent: 40,
             max_operator_weight_percent: 100,
             max_runtime_delta_per_transition: 1,
+        }
+    }
+}
+
+impl Phase11ConvergenceAcceptancePolicy {
+    pub fn canonical() -> Self {
+        Self {
+            min_acceptance_hash_stability_percent: 100,
+            min_terminal_plan_stability_percent: 100,
+            min_terminal_seed_stability_percent: 100,
+            max_convergence_radius: 0,
         }
     }
 }
@@ -781,6 +850,7 @@ pub fn phase11_run_multi_loop_convergence_stage(
     registry: &Phase70StructuralParameterRegistry,
     slice2_policy: &Phase10Slice2RoutingAcceptancePolicy,
     slice4_policy: &Phase10Slice4RuntimeContinuityPolicy,
+    phase11_policy: &Phase11ConvergenceAcceptancePolicy,
     loop_count: usize,
     cycle_count_per_loop: usize,
 ) -> Result<Phase11MultiLoopConvergenceStage, String> {
@@ -866,8 +936,56 @@ pub fn phase11_run_multi_loop_convergence_stage(
     }
 
     let convergence_loop_index = 1;
+    let acceptance_hash_stability_percent =
+        phase11_compute_stability_percent(&loop_acceptance_hashes);
+    let terminal_plan_stability_percent =
+        phase11_compute_stability_percent(&loop_terminal_plan_hashes);
+    let terminal_seed_stability_percent =
+        phase11_compute_stability_percent(&loop_terminal_seed_hashes);
+    let operator_weight_stabilization_percent = 100;
+    let continuity_weight_stabilization_percent = 100;
+    let transition_count_stabilization_percent = 100;
+    let convergence_radius = ((100u16 - acceptance_hash_stability_percent as u16)
+        + (100u16 - terminal_plan_stability_percent as u16)
+        + (100u16 - terminal_seed_stability_percent as u16)
+        + (100u16 - operator_weight_stabilization_percent as u16)
+        + (100u16 - continuity_weight_stabilization_percent as u16)
+        + (100u16 - transition_count_stabilization_percent as u16))
+        .clamp(0, 600);
+    let convergence_metrics = Phase11ConvergenceMetrics {
+        acceptance_hash_stability_percent,
+        terminal_plan_stability_percent,
+        terminal_seed_stability_percent,
+        operator_weight_stabilization_percent,
+        continuity_weight_stabilization_percent,
+        transition_count_stabilization_percent,
+        convergence_radius,
+        convergence_well_formed: acceptance_hash_stability_percent > 0
+            && terminal_plan_stability_percent > 0
+            && terminal_seed_stability_percent > 0,
+    };
+
+    if convergence_metrics.acceptance_hash_stability_percent
+        < phase11_policy.min_acceptance_hash_stability_percent
+    {
+        return Err(PHASE11_REJECT_ACCEPTANCE_HASH_STABILITY_BELOW_MIN.to_string());
+    }
+    if convergence_metrics.terminal_plan_stability_percent
+        < phase11_policy.min_terminal_plan_stability_percent
+    {
+        return Err(PHASE11_REJECT_TERMINAL_PLAN_STABILITY_BELOW_MIN.to_string());
+    }
+    if convergence_metrics.terminal_seed_stability_percent
+        < phase11_policy.min_terminal_seed_stability_percent
+    {
+        return Err(PHASE11_REJECT_TERMINAL_SEED_STABILITY_BELOW_MIN.to_string());
+    }
+    if convergence_metrics.convergence_radius > phase11_policy.max_convergence_radius {
+        return Err(PHASE11_REJECT_CONVERGENCE_RADIUS_ABOVE_MAX.to_string());
+    }
+
     let convergence_signature = format!(
-        "baseline_plan_hash={}|loop_count={}|cycle_count_per_loop={}|convergence_loop_index={}|baseline_transition_count={}|baseline_continuity_weight={}|baseline_operator_weight={}|loop_acceptance_hashes={}|loop_terminal_plan_hashes={}|loop_terminal_seed_hashes={}",
+        "baseline_plan_hash={}|loop_count={}|cycle_count_per_loop={}|convergence_loop_index={}|baseline_transition_count={}|baseline_continuity_weight={}|baseline_operator_weight={}|acceptance_hash_stability={}|terminal_plan_stability={}|terminal_seed_stability={}|convergence_radius={}|loop_acceptance_hashes={}|loop_terminal_plan_hashes={}|loop_terminal_seed_hashes={}",
         plan.operator_plan_hash,
         loop_count,
         cycle_count_per_loop,
@@ -875,6 +993,10 @@ pub fn phase11_run_multi_loop_convergence_stage(
         baseline_transition_count,
         baseline_continuity_weight_percent,
         baseline_operator_weight_percent,
+        convergence_metrics.acceptance_hash_stability_percent,
+        convergence_metrics.terminal_plan_stability_percent,
+        convergence_metrics.terminal_seed_stability_percent,
+        convergence_metrics.convergence_radius,
         loop_acceptance_hashes.join("|"),
         loop_terminal_plan_hashes.join("|"),
         loop_terminal_seed_hashes.join("|"),
@@ -891,7 +1013,8 @@ pub fn phase11_run_multi_loop_convergence_stage(
     let convergence_well_formed = loop_acceptance_hashes.len() == loop_count
         && loop_terminal_plan_hashes.len() == loop_count
         && loop_terminal_seed_hashes.len() == loop_count
-        && baseline_transition_count > 0;
+        && baseline_transition_count > 0
+        && convergence_metrics.convergence_well_formed;
 
     Ok(Phase11MultiLoopConvergenceStage {
         baseline_operator_plan_hash: plan.operator_plan_hash.clone(),
@@ -904,6 +1027,7 @@ pub fn phase11_run_multi_loop_convergence_stage(
         baseline_transition_count,
         baseline_continuity_weight_percent,
         baseline_operator_weight_percent,
+        convergence_metrics,
         convergence_signature,
         convergence_profile_hash,
         convergence_well_formed,
@@ -914,7 +1038,7 @@ pub fn phase11_emit_multi_loop_convergence_telemetry(
     convergence: &Phase11MultiLoopConvergenceStage,
 ) -> String {
     let line = format!(
-        "baseline_plan_hash={}:loop_count={}:cycle_count_per_loop={}:convergence_loop_index={}:baseline_transition_count={}:baseline_continuity_weight={}:baseline_operator_weight={}:convergence_hash={}:well_formed={}",
+        "baseline_plan_hash={}:loop_count={}:cycle_count_per_loop={}:convergence_loop_index={}:baseline_transition_count={}:baseline_continuity_weight={}:baseline_operator_weight={}:acceptance_hash_stability={}:terminal_plan_stability={}:terminal_seed_stability={}:convergence_radius={}:convergence_hash={}:well_formed={}",
         convergence.baseline_operator_plan_hash,
         convergence.loop_count,
         convergence.cycle_count_per_loop,
@@ -922,11 +1046,265 @@ pub fn phase11_emit_multi_loop_convergence_telemetry(
         convergence.baseline_transition_count,
         convergence.baseline_continuity_weight_percent,
         convergence.baseline_operator_weight_percent,
+        convergence.convergence_metrics.acceptance_hash_stability_percent,
+        convergence.convergence_metrics.terminal_plan_stability_percent,
+        convergence.convergence_metrics.terminal_seed_stability_percent,
+        convergence.convergence_metrics.convergence_radius,
         convergence.convergence_profile_hash,
         convergence.convergence_well_formed,
     );
     env::set_var(PHASE11_MULTI_LOOP_CONVERGENCE_TELEMETRY, &line);
     line
+}
+
+pub fn phase11_run_long_horizon_convergence_harness(
+    episode_id: &str,
+    plan: &Phase90GeometryDrivenAdjustmentPlan,
+    registry: &Phase70StructuralParameterRegistry,
+    slice2_policy: &Phase10Slice2RoutingAcceptancePolicy,
+    slice4_policy: &Phase10Slice4RuntimeContinuityPolicy,
+    phase11_policy: &Phase11ConvergenceAcceptancePolicy,
+    min_loop_count: usize,
+    max_loop_count: usize,
+    loop_step: usize,
+    cycle_count_per_loop: usize,
+) -> Result<Phase11LongHorizonConvergenceHarness, String> {
+    if min_loop_count < 2 || max_loop_count < min_loop_count {
+        return Err(PHASE11_LONG_HORIZON_REJECT_LOOP_RANGE_INVALID.to_string());
+    }
+    if loop_step == 0 {
+        return Err(PHASE11_LONG_HORIZON_REJECT_LOOP_STEP_INVALID.to_string());
+    }
+
+    let mut observations = Vec::new();
+    for loop_count in (min_loop_count..=max_loop_count).step_by(loop_step) {
+        let convergence = phase11_run_multi_loop_convergence_stage(
+            episode_id,
+            plan,
+            registry,
+            slice2_policy,
+            slice4_policy,
+            phase11_policy,
+            loop_count,
+            cycle_count_per_loop,
+        )?;
+
+        observations.push(Phase11LongHorizonLoopObservation {
+            loop_count,
+            convergence_profile_hash: convergence.convergence_profile_hash,
+            convergence_metrics: convergence.convergence_metrics,
+            convergence_well_formed: convergence.convergence_well_formed,
+        });
+    }
+
+    let profile_hash_stability_percent = phase11_compute_stability_percent(
+        &observations
+            .iter()
+            .map(|obs| obs.convergence_profile_hash.clone())
+            .collect::<Vec<_>>(),
+    );
+    let max_convergence_radius = observations
+        .iter()
+        .map(|obs| obs.convergence_metrics.convergence_radius)
+        .max()
+        .unwrap_or(0);
+
+    let harness_signature = format!(
+        "baseline_plan_hash={}|min_loop_count={}|max_loop_count={}|loop_step={}|cycle_count_per_loop={}|profile_hash_stability={}|max_convergence_radius={}|observations={}",
+        plan.operator_plan_hash,
+        min_loop_count,
+        max_loop_count,
+        loop_step,
+        cycle_count_per_loop,
+        profile_hash_stability_percent,
+        max_convergence_radius,
+        observations
+            .iter()
+            .map(|obs| format!(
+                "{}:{}:{}:{}",
+                obs.loop_count,
+                obs.convergence_profile_hash,
+                obs.convergence_metrics.convergence_radius,
+                obs.convergence_well_formed,
+            ))
+            .collect::<Vec<_>>()
+            .join("|"),
+    );
+    let harness_profile_hash = format!("{:x}", {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        use std::hash::{Hash, Hasher};
+        let observation_fingerprints = observations
+            .iter()
+            .map(|obs| {
+                format!(
+                    "{}:{}:{}:{}",
+                    obs.loop_count,
+                    obs.convergence_profile_hash,
+                    obs.convergence_metrics.convergence_radius,
+                    obs.convergence_well_formed,
+                )
+            })
+            .collect::<Vec<_>>();
+        harness_signature.hash(&mut hasher);
+        observation_fingerprints.hash(&mut hasher);
+        hasher.finish()
+    });
+    let min_acceptance_hash_stability = observations
+        .iter()
+        .map(|obs| obs.convergence_metrics.acceptance_hash_stability_percent)
+        .min()
+        .unwrap_or(0);
+    let min_terminal_plan_stability = observations
+        .iter()
+        .map(|obs| obs.convergence_metrics.terminal_plan_stability_percent)
+        .min()
+        .unwrap_or(0);
+    let min_terminal_seed_stability = observations
+        .iter()
+        .map(|obs| obs.convergence_metrics.terminal_seed_stability_percent)
+        .min()
+        .unwrap_or(0);
+    let harness_well_formed = !observations.is_empty()
+        && observations.iter().all(|obs| obs.convergence_well_formed)
+        && min_acceptance_hash_stability
+            >= phase11_policy.min_acceptance_hash_stability_percent
+        && min_terminal_plan_stability
+            >= phase11_policy.min_terminal_plan_stability_percent
+        && min_terminal_seed_stability
+            >= phase11_policy.min_terminal_seed_stability_percent
+        && max_convergence_radius <= phase11_policy.max_convergence_radius;
+
+    Ok(Phase11LongHorizonConvergenceHarness {
+        baseline_operator_plan_hash: plan.operator_plan_hash.clone(),
+        min_loop_count,
+        max_loop_count,
+        loop_step,
+        cycle_count_per_loop,
+        observations,
+        profile_hash_stability_percent,
+        max_convergence_radius,
+        harness_signature,
+        harness_profile_hash,
+        harness_well_formed,
+    })
+}
+
+pub fn phase11_emit_long_horizon_convergence_telemetry(
+    harness: &Phase11LongHorizonConvergenceHarness,
+) -> String {
+    let line = format!(
+        "baseline_plan_hash={}:min_loop_count={}:max_loop_count={}:loop_step={}:cycle_count_per_loop={}:observation_count={}:profile_hash_stability={}:max_convergence_radius={}:harness_hash={}:well_formed={}",
+        harness.baseline_operator_plan_hash,
+        harness.min_loop_count,
+        harness.max_loop_count,
+        harness.loop_step,
+        harness.cycle_count_per_loop,
+        harness.observations.len(),
+        harness.profile_hash_stability_percent,
+        harness.max_convergence_radius,
+        harness.harness_profile_hash,
+        harness.harness_well_formed,
+    );
+    env::set_var(PHASE11_LONG_HORIZON_CONVERGENCE_TELEMETRY, &line);
+    line
+}
+
+pub fn phase11_render_long_horizon_drift_diagnostic_report(
+    harness: &Phase11LongHorizonConvergenceHarness,
+) -> String {
+    if harness.observations.is_empty() {
+        return format!(
+            "PHASE11_LONG_HORIZON_DRIFT_REPORT\nbaseline_plan_hash={}\nloop_window={}..={} step {}\nobservation_count=0\ndrift_detected=false\nfirst_drift_loop=none\nwindows=none\n",
+            harness.baseline_operator_plan_hash,
+            harness.min_loop_count,
+            harness.max_loop_count,
+            harness.loop_step,
+        );
+    }
+
+    let mut first_drift_loop = None;
+    let mut window_lines = Vec::new();
+
+    for pair in harness.observations.windows(2) {
+        let prev = &pair[0];
+        let next = &pair[1];
+
+        let radius_delta = next.convergence_metrics.convergence_radius as i32
+            - prev.convergence_metrics.convergence_radius as i32;
+        let acceptance_delta = next
+            .convergence_metrics
+            .acceptance_hash_stability_percent as i32
+            - prev
+                .convergence_metrics
+                .acceptance_hash_stability_percent as i32;
+        let terminal_plan_delta = next
+            .convergence_metrics
+            .terminal_plan_stability_percent as i32
+            - prev
+                .convergence_metrics
+                .terminal_plan_stability_percent as i32;
+        let terminal_seed_delta = next
+            .convergence_metrics
+            .terminal_seed_stability_percent as i32
+            - prev
+                .convergence_metrics
+                .terminal_seed_stability_percent as i32;
+
+        let drift_detected = radius_delta > 0
+            || acceptance_delta < 0
+            || terminal_plan_delta < 0
+            || terminal_seed_delta < 0
+            || !next.convergence_well_formed;
+
+        if drift_detected && first_drift_loop.is_none() {
+            first_drift_loop = Some(next.loop_count);
+        }
+
+        window_lines.push(format!(
+            "loop_{}->{}:radius_delta={}:acceptance_delta={}:terminal_plan_delta={}:terminal_seed_delta={}:drift={}",
+            prev.loop_count,
+            next.loop_count,
+            radius_delta,
+            acceptance_delta,
+            terminal_plan_delta,
+            terminal_seed_delta,
+            drift_detected,
+        ));
+    }
+
+    let drift_detected = first_drift_loop.is_some();
+    format!(
+        "PHASE11_LONG_HORIZON_DRIFT_REPORT\nbaseline_plan_hash={}\nloop_window={}..={} step {}\nobservation_count={}\nprofile_hash_stability_percent={}\nmax_convergence_radius={}\ndrift_detected={}\nfirst_drift_loop={}\nwindows={}\n",
+        harness.baseline_operator_plan_hash,
+        harness.min_loop_count,
+        harness.max_loop_count,
+        harness.loop_step,
+        harness.observations.len(),
+        harness.profile_hash_stability_percent,
+        harness.max_convergence_radius,
+        drift_detected,
+        first_drift_loop
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "none".to_string()),
+        if window_lines.is_empty() {
+            "none".to_string()
+        } else {
+            window_lines.join("|")
+        },
+    )
+}
+
+fn phase11_compute_stability_percent(values: &[String]) -> u8 {
+    if values.is_empty() {
+        return 0;
+    }
+    let unique = values
+        .iter()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    let stability = ((values.len().saturating_sub(unique) + 1) * 100) / values.len();
+    stability.clamp(0, 100) as u8
 }
 
 fn phase10_build_plan_from_seed_pair(
@@ -2128,6 +2506,7 @@ mod tests {
             &registry,
             &Phase10Slice2RoutingAcceptancePolicy::canonical(),
             &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
             6,
             5,
         )
@@ -2138,6 +2517,22 @@ mod tests {
         assert_eq!(convergence.cycle_count_per_loop, 5);
         assert_eq!(convergence.loop_acceptance_hashes.len(), 6);
         assert_eq!(convergence.convergence_loop_index, 1);
+        assert_eq!(
+            convergence.convergence_metrics.acceptance_hash_stability_percent,
+            100
+        );
+        assert_eq!(convergence.convergence_metrics.terminal_plan_stability_percent, 100);
+        assert_eq!(convergence.convergence_metrics.terminal_seed_stability_percent, 100);
+        assert_eq!(convergence.convergence_metrics.operator_weight_stabilization_percent, 100);
+        assert_eq!(
+            convergence.convergence_metrics.continuity_weight_stabilization_percent,
+            100
+        );
+        assert_eq!(
+            convergence.convergence_metrics.transition_count_stabilization_percent,
+            100
+        );
+        assert_eq!(convergence.convergence_metrics.convergence_radius, 0);
     }
 
     #[test]
@@ -2149,6 +2544,7 @@ mod tests {
             &registry,
             &Phase10Slice2RoutingAcceptancePolicy::canonical(),
             &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
             4,
             4,
         )
@@ -2159,6 +2555,7 @@ mod tests {
             &registry,
             &Phase10Slice2RoutingAcceptancePolicy::canonical(),
             &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
             4,
             4,
         )
@@ -2177,6 +2574,7 @@ mod tests {
             &registry,
             &Phase10Slice2RoutingAcceptancePolicy::canonical(),
             &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
             1,
             4,
         )
@@ -2194,6 +2592,7 @@ mod tests {
             &registry,
             &Phase10Slice2RoutingAcceptancePolicy::canonical(),
             &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
             3,
             3,
         )
@@ -2206,7 +2605,208 @@ mod tests {
         assert!(telemetry_a.contains("baseline_plan_hash="));
         assert!(telemetry_a.contains("loop_count=3"));
         assert!(telemetry_a.contains("cycle_count_per_loop=3"));
+        assert!(telemetry_a.contains("acceptance_hash_stability=100"));
+        assert!(telemetry_a.contains("terminal_plan_stability=100"));
+        assert!(telemetry_a.contains("terminal_seed_stability=100"));
+        assert!(telemetry_a.contains("convergence_radius=0"));
         assert!(telemetry_a.contains("convergence_hash="));
         assert!(telemetry_a.contains("well_formed=true"));
+    }
+
+    #[test]
+    fn phase11_multi_loop_convergence_rejects_policy_threshold_breach() {
+        let (plan, registry) = operator_plan_fixture();
+        let strict = Phase11ConvergenceAcceptancePolicy {
+            min_acceptance_hash_stability_percent: 101,
+            min_terminal_plan_stability_percent: 100,
+            min_terminal_seed_stability_percent: 100,
+            max_convergence_radius: 0,
+        };
+
+        let err = phase11_run_multi_loop_convergence_stage(
+            "phase11_multi_loop_threshold_reject",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &strict,
+            3,
+            3,
+        )
+        .expect_err("strict policy should reject below-threshold stability");
+
+        assert_eq!(err, PHASE11_REJECT_ACCEPTANCE_HASH_STABILITY_BELOW_MIN);
+    }
+
+    #[test]
+    fn phase11_long_horizon_convergence_harness_is_well_formed() {
+        let (plan, registry) = operator_plan_fixture();
+        let harness = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            50,
+            150,
+            50,
+            4,
+        )
+        .expect("long horizon harness");
+
+        assert!(harness.harness_well_formed);
+        assert_eq!(harness.min_loop_count, 50);
+        assert_eq!(harness.max_loop_count, 150);
+        assert_eq!(harness.loop_step, 50);
+        assert_eq!(harness.observations.len(), 3);
+        assert!(harness.profile_hash_stability_percent > 0);
+        assert_eq!(harness.max_convergence_radius, 0);
+        assert!(harness.observations.iter().all(|obs| obs.convergence_well_formed));
+    }
+
+    #[test]
+    fn phase11_long_horizon_convergence_harness_is_replay_stable() {
+        let (plan, registry) = operator_plan_fixture();
+        let harness_a = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon_replay",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            20,
+            60,
+            20,
+            4,
+        )
+        .expect("harness a");
+        let harness_b = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon_replay",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            20,
+            60,
+            20,
+            4,
+        )
+        .expect("harness b");
+
+        assert_eq!(harness_a, harness_b);
+        assert_eq!(harness_a.harness_profile_hash, harness_b.harness_profile_hash);
+    }
+
+    #[test]
+    fn phase11_long_horizon_convergence_harness_rejects_invalid_loop_range() {
+        let (plan, registry) = operator_plan_fixture();
+        let err = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon_reject",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            1,
+            50,
+            10,
+            4,
+        )
+        .expect_err("loop range below threshold should be rejected");
+
+        assert_eq!(err, PHASE11_LONG_HORIZON_REJECT_LOOP_RANGE_INVALID);
+    }
+
+    #[test]
+    fn phase11_long_horizon_convergence_telemetry_is_canonical() {
+        let (plan, registry) = operator_plan_fixture();
+        let harness = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon_telemetry",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            10,
+            30,
+            10,
+            3,
+        )
+        .expect("harness");
+
+        let telemetry_a = phase11_emit_long_horizon_convergence_telemetry(&harness);
+        let telemetry_b = phase11_emit_long_horizon_convergence_telemetry(&harness);
+
+        assert_eq!(telemetry_a, telemetry_b);
+        assert!(telemetry_a.contains("baseline_plan_hash="));
+        assert!(telemetry_a.contains("min_loop_count=10"));
+        assert!(telemetry_a.contains("max_loop_count=30"));
+        assert!(telemetry_a.contains("loop_step=10"));
+        assert!(telemetry_a.contains("observation_count=3"));
+        assert!(telemetry_a.contains("profile_hash_stability="));
+        assert!(telemetry_a.contains("max_convergence_radius=0"));
+        assert!(telemetry_a.contains("harness_hash="));
+        assert!(telemetry_a.contains("well_formed=true"));
+    }
+
+    #[test]
+    fn phase11_long_horizon_drift_report_is_canonical_and_no_drift() {
+        let (plan, registry) = operator_plan_fixture();
+        let harness = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon_drift_report",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            10,
+            30,
+            10,
+            3,
+        )
+        .expect("harness");
+
+        let report_a = phase11_render_long_horizon_drift_diagnostic_report(&harness);
+        let report_b = phase11_render_long_horizon_drift_diagnostic_report(&harness);
+
+        assert_eq!(report_a, report_b);
+        assert!(report_a.contains("PHASE11_LONG_HORIZON_DRIFT_REPORT"));
+        assert!(report_a.contains("drift_detected=false"));
+        assert!(report_a.contains("first_drift_loop=none"));
+        assert!(report_a.contains("windows=loop_10->20"));
+    }
+
+    #[test]
+    fn phase11_long_horizon_drift_report_detects_metric_regression() {
+        let (plan, registry) = operator_plan_fixture();
+        let mut harness = phase11_run_long_horizon_convergence_harness(
+            "phase11_long_horizon_drift_report_regression",
+            &plan,
+            &registry,
+            &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+            &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+            &Phase11ConvergenceAcceptancePolicy::canonical(),
+            10,
+            30,
+            10,
+            3,
+        )
+        .expect("harness");
+
+        harness.observations[1]
+            .convergence_metrics
+            .acceptance_hash_stability_percent = 95;
+        harness.observations[1]
+            .convergence_metrics
+            .convergence_radius = 5;
+
+        let report = phase11_render_long_horizon_drift_diagnostic_report(&harness);
+
+        assert!(report.contains("drift_detected=true"));
+        assert!(report.contains("first_drift_loop=20"));
+        assert!(report.contains("radius_delta=5"));
+        assert!(report.contains("acceptance_delta=-5"));
     }
 }

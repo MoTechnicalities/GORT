@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gort:phase80-gauntlet-schema-manifest:v1",
+  "manifest_version": "v1",
+  "artifact": "phase80-gauntlet-summary",
+  "default_schema_version": "v1",
+  "supported_versions": {
+    "v1": {
+      "schema_path": "docs/schemas/phase80-gauntlet-summary-v1.schema.json",
+      "stability": "stable",
+      "deprecated": false,
+      "breaking_changes": [],
+      "compatible_with": [],
+      "requires_explicit_migration": false
+    },
+    "v1-experimental": {
+      "schema_path": "docs/schemas/phase80-gauntlet-summary-v1-experimental.schema.json",
+      "stability": "experimental",
+      "deprecated": false,
+      "breaking_changes": [],
+      "compatible_with": ["v1"],
+      "requires_explicit_migration": false
+    }
+  },
+  "_comment": "Schema evolution rules: new versions must either be backward-compatible (compatible_with lists older versions) or declare breaking_changes + set requires_explicit_migration=true"
+}
