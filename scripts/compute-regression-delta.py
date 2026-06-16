@@ -77,6 +77,69 @@ def compare_drift_verdicts(
     
     return has_regression, messages
 
+def compare_phase12(
+    current_p12: Dict[str, Any],
+    baseline_p12: Dict[str, Any],
+) -> Tuple[bool, List[str]]:
+    """
+    Compare Phase 12 emergent-program fields for drift.
+    Regressions: verdict true→non-true, signature_hash changed,
+    telemetry_digest changed.
+    Informational (reported but not a regression): operator_plan_size,
+    resonance_gate changes.
+    """
+    if not baseline_p12 or not current_p12:
+        return False, []
+
+    has_regression = False
+    messages: List[str] = []
+
+    # Verdict: true -> anything else is a hard failure.
+    baseline_verdict = baseline_p12.get("phase12_verdict", "")
+    current_verdict = current_p12.get("phase12_verdict", "")
+    if baseline_verdict == "true" and current_verdict != "true":
+        messages.append(
+            f"phase12_verdict: {baseline_verdict} → {current_verdict}"
+        )
+        has_regression = True
+
+    # Signature hash drift: program structure changed.
+    baseline_sig = baseline_p12.get("phase12_signature_hash", "")
+    current_sig = current_p12.get("phase12_signature_hash", "")
+    if baseline_sig and current_sig and baseline_sig != current_sig:
+        messages.append(
+            f"phase12_signature_hash: {baseline_sig} → {current_sig}"
+        )
+        has_regression = True
+
+    # Telemetry digest drift: telemetry output changed.
+    baseline_tel = baseline_p12.get("phase12_telemetry_digest", "")
+    current_tel = current_p12.get("phase12_telemetry_digest", "")
+    if baseline_tel and current_tel and baseline_tel != current_tel:
+        messages.append(
+            f"phase12_telemetry_digest: {baseline_tel} → {current_tel}"
+        )
+        has_regression = True
+
+    # Informational: operator plan size change.
+    baseline_ops = baseline_p12.get("phase12_operator_plan_size", "")
+    current_ops = current_p12.get("phase12_operator_plan_size", "")
+    if baseline_ops and current_ops and baseline_ops != current_ops:
+        messages.append(
+            f"phase12_operator_plan_size (informational): {baseline_ops} → {current_ops}"
+        )
+
+    # Informational: resonance gate change.
+    baseline_gate = baseline_p12.get("phase12_resonance_gate", "")
+    current_gate = current_p12.get("phase12_resonance_gate", "")
+    if baseline_gate and current_gate and baseline_gate != current_gate:
+        messages.append(
+            f"phase12_resonance_gate (informational): {baseline_gate} → {current_gate}"
+        )
+
+    return has_regression, messages
+
+
 def compute_regression_delta(
     current_summary: Dict[str, Any],
     baseline_summary: Dict[str, Any]
@@ -131,7 +194,18 @@ def compute_regression_delta(
             result["regression_detected"] = True
             result["regression_messages"].extend(deep_time_messages)
             result["regression_fields"].append("deep_time")
-    
+
+    # Compare phase12 emergent-program fields (long-horizon drift detection)
+    baseline_p12 = baseline_summary.get("phase12", {})
+    current_p12 = current_summary.get("phase12", {})
+    if baseline_p12 or current_p12:
+        p12_regressed, p12_messages = compare_phase12(current_p12, baseline_p12)
+        if p12_messages:
+            result["regression_messages"].extend(p12_messages)
+        if p12_regressed:
+            result["regression_detected"] = True
+            result["regression_fields"].append("phase12")
+
     return result
 
 def main():

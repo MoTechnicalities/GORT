@@ -52,6 +52,7 @@ pub mod cognition {
     pub mod phase90_cognitive_manifolds;
     pub mod phase90_multishape_interaction_dynamics;
     pub mod phase90_geometry_driven_adjustment_operators;
+    pub mod phase12_emergent_cognitive_programs;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -154,6 +155,12 @@ pub mod cognition {
         Phase90GeometryDrivenAdjustmentPlan,
         phase90_build_geometry_driven_adjustment_plan,
         phase90_emit_geometry_operator_telemetry,
+    };
+    pub use phase12_emergent_cognitive_programs::{
+        Phase12EmergentCognitiveProgram,
+        Phase12EmergentCognitiveProgramStep,
+        phase12_emit_program_telemetry,
+        phase12_synthesize_emergent_cognitive_program,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -322,6 +329,10 @@ pub use cognition::{
     Phase90GeometryDrivenAdjustmentPlan,
     phase90_build_geometry_driven_adjustment_plan,
     phase90_emit_geometry_operator_telemetry,
+    Phase12EmergentCognitiveProgram,
+    Phase12EmergentCognitiveProgramStep,
+    phase12_emit_program_telemetry,
+    phase12_synthesize_emergent_cognitive_program,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

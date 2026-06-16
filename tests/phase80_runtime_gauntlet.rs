@@ -16,6 +16,7 @@ use gort::{
     phase90_compute_multishape_interaction_dynamics, phase90_emit_interaction_dynamics_telemetry,
     phase90_build_geometry_driven_adjustment_plan, phase90_emit_geometry_operator_telemetry,
     Phase90GeometryDrivenAdjustmentOperator, Phase90GeometryDrivenAdjustmentPlan,
+    phase12_emit_program_telemetry, phase12_synthesize_emergent_cognitive_program,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -2892,4 +2893,86 @@ fn gauntlet_phase11_multi_loop_convergence_rejects_threshold_breach() {
     .expect_err("strict policy should reject below-threshold stability");
 
     assert_eq!(err, "phase11_reject_acceptance_hash_stability_below_min");
+}
+
+#[test]
+fn gauntlet_phase12_emergent_programs_gate_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_phase12_programs",
+        &[
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p12a1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p12a2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p12a3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p12a4", "none", false, 1, 1, 0),
+                        entry(3, "p12a5", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p12b1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p12b2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p12b3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p12b4", "none", true, 1, 2, 1),
+                        entry(3, "p12b5", "none", false, 2, 2, 0),
+                    ],
+                },
+            ],
+        ],
+        &registry,
+    );
+
+    let baseline_program = phase12_synthesize_emergent_cognitive_program(&_manifold, &plan)
+        .expect("baseline program");
+    let baseline_telemetry = phase12_emit_program_telemetry(&baseline_program);
+
+    assert!(baseline_program.program_well_formed);
+    assert!(!baseline_program.program_signature.is_empty());
+    assert!(!baseline_program.program_profile_hash.is_empty());
+    assert!(baseline_telemetry.contains("program_kind="));
+    assert!(baseline_telemetry.contains("step_count="));
+    assert!(baseline_telemetry.contains("well_formed=true"));
+
+    const PHASE12_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE12_REPLAY_LOOPS {
+        let current_program = phase12_synthesize_emergent_cognitive_program(&_manifold, &plan)
+            .expect("current program");
+        let current_telemetry = phase12_emit_program_telemetry(&current_program);
+
+        assert_eq!(current_program, baseline_program);
+        assert_eq!(current_program.program_signature, baseline_program.program_signature);
+        assert_eq!(current_program.program_profile_hash, baseline_program.program_profile_hash);
+        assert_eq!(current_telemetry, baseline_telemetry);
+    }
+
+    // Emit parseable Phase 12 summary for gauntlet script extraction.
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        baseline_telemetry.hash(&mut h);
+        let telemetry_digest = format!("{:016x}", h.finish());
+        println!(
+            "PHASE12_SUMMARY:verdict={}|signature_hash={}|operator_plan_size={}|resonance_gate={}|telemetry_digest={}|replay_loops={}",
+            baseline_program.program_well_formed,
+            baseline_program.program_profile_hash,
+            baseline_program.step_count,
+            baseline_program.resonance_gate_percent,
+            telemetry_digest,
+            PHASE12_REPLAY_LOOPS,
+        );
+    }
 }

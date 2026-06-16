@@ -84,5 +84,9 @@ name = "phase57_meta_intent"
 path = "examples/phase57_meta_intent.rs"
 
 [[example]]
+name = "phase12_emergent_cognitive_programs"
+path = "examples/phase12_emergent_cognitive_programs.rs"
+
+[[example]]
 name = "curriculum_harness"
 path = "examples/curriculum_harness.rs"

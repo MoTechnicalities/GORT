@@ -92,6 +92,102 @@
         }
       }
     },
+    "phase12": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase12_verdict",
+        "phase12_signature_hash",
+        "phase12_operator_plan_size",
+        "phase12_resonance_gate",
+        "phase12_telemetry_digest"
+      ],
+      "properties": {
+        "phase12_verdict": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase12_signature_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase12_operator_plan_size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase12_resonance_gate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase12_telemetry_digest": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "phase12_drift_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "replay_loop_count",
+        "baseline_available",
+        "drift_detected",
+        "drift_verdict",
+        "drift_window",
+        "signature_drift_detected",
+        "telemetry_drift_detected",
+        "baseline_signature_hash",
+        "current_signature_hash",
+        "baseline_telemetry_digest",
+        "current_telemetry_digest"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replay_loop_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_available": {
+          "type": "boolean"
+        },
+        "drift_detected": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
+          "type": "string",
+          "minLength": 1
+        },
+        "drift_window": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature_drift_detected": {
+          "type": "boolean"
+        },
+        "telemetry_drift_detected": {
+          "type": "boolean"
+        },
+        "baseline_signature_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_signature_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_telemetry_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_telemetry_digest": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "deep_time": {
       "oneOf": [
         {

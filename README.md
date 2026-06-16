@@ -40,6 +40,8 @@ GORT is explicitly the third.
 
 ### Developmental Arc
 
+Long-range directional arc beyond currently implemented milestones:
+
 | Phase | Cognitive Capability |
 |---|---|
 | Phase 6.3 | Operator-regulated prioritization |
@@ -49,7 +51,7 @@ GORT is explicitly the third.
 | Phase 8.x | Choice-driven structural adaptation |
 | Phase 9.x | Structure-driven cognitive improvement |
 
-The substrate for the first four is already built.
+Current implemented/governed execution path is documented in the Roadmap and CI Gauntlet sections below (through Phase 12 governance surfaces).
 
 ## Design Axiom: Geometry Emerges From Stability
 
@@ -314,6 +316,132 @@ The summary JSON also emits governance-level resolution fields:
 Schema manifest governance:
 
 - `manifest_signature`: SHA256 hash of the manifest file, for detecting manifest drift
+- `phase12_invariants`: explicit acceptance rules for the Phase 12 emergent-program gate
+- The gauntlet enforces `phase12_invariants` through the `phase12_manifest_invariants` check before the runtime Phase 12 replay-stability gate runs
+- The gauntlet emits `phase12_drift_window` metadata in JSON and a `phase12_top_level_summary` row in the human-readable summary table
+
+Phase 12 acceptance rules:
+
+- The source manifold must be well-formed before synthesis
+- The adjustment plan must be well-formed before synthesis
+- The manifold signature and plan signature must match
+- The adjustment plan must contain at least one operator
+- Each synthesized step must produce a non-empty step kind with positive continuity guard and manifold alignment scores
+- The resulting program must be well-formed, have a positive resonance gate, and include at least one step
+- Telemetry must be derived only from synthesized program fields so replay stays deterministic
+- Identical manifold and plan inputs must produce the same `program_signature` and `program_profile_hash`
+
+#### Phase 12 Cognitive Role
+
+What Phase 12 does:
+
+- Phase 12 converts converged geometric cognition state into an explicit emergent cognitive program.
+- It packages manifold state and adjustment intent into a deterministic, replay-stable program artifact.
+- It exposes auditable program telemetry so downstream gates can track structural stability over time.
+
+How emergent cognitive programs are synthesized:
+
+- Inputs: a well-formed cognitive manifold plus a well-formed geometry-driven adjustment plan.
+- Validation: manifold and plan signatures must match, and the operator plan must be non-empty.
+- Program construction: each adjustment operator becomes a deterministic program step with continuity and manifold-alignment scoring.
+- Program outputs: Phase 12 emits `program_signature`, `program_profile_hash`, and deterministic telemetry fields used by gauntlet governance checks.
+
+How Phase 12 interacts with geometry and adjustment plans:
+
+- Geometry provides the manifold archetype and embedding weights that shape `program_kind` and resonance gating.
+- The adjustment plan provides operator ordering and pressure, which become executable program steps.
+- Phase 12 acts as the bridge between structural geometric cognition (Phase 9/10/11 lineage) and governed program-level behavior checked by CI and drift windows.
+
+#### Post-Phase 12 Development Chain (Deterministic Continuation)
+
+Phase 12 establishes:
+
+- Geometry -> Program
+
+Phases 13+ extend that into:
+
+- Program -> Meta-Program -> Understanding -> Intent -> Agency -> Self-Correction
+
+##### Phase 13: Meta-Programs (Programs About Programs)
+
+What it introduces:
+
+- Program-level meta-cognition: evaluate, compare, and transform Phase 12 programs.
+- Uses existing Phase 12 artifacts (`program_signature`, `program_profile_hash`, `phase12_telemetry_digest`, `phase12_operator_plan_size`, `phase12_resonance_gate`) as deterministic inputs.
+
+Deterministic capability:
+
+- GORT can classify, compare, cluster, and refine its own emergent programs.
+
+##### Phase 14: Program Topology and Program Geometry
+
+What it introduces:
+
+- A geometric/topological representation where programs become nodes, edges, regions, basins, and flows.
+
+Deterministic capability:
+
+- GORT discovers the geometry of its own behavior and identifies similarity, shared attractors, and boundary-case programs.
+
+##### Phase 15: Program Understanding (Stable Behavioral Regions)
+
+What it introduces:
+
+- Stable regions in program-geometry become durable behavioral understanding.
+
+Deterministic capability:
+
+- GORT forms stable program families, behavioral categories, transformation rules, and program-level meaning.
+
+##### Phase 16: Intent Fields Over Programs
+
+What it introduces:
+
+- Extends intent fields, energy landscapes, and goal attractors from concept-space into program-space.
+
+Deterministic capability:
+
+- GORT selects programs according to internal intent fields and goal pressures.
+
+##### Phase 17: Multi-Program Arbitration
+
+What it introduces:
+
+- Conflict resolution across competing candidate programs.
+
+Deterministic capability:
+
+- GORT enforces behavioral coherence by arbitrating among multiple viable programs.
+
+##### Phase 18: Self-Correction and Program Repair
+
+What it introduces:
+
+- Program repair loops driven by drift, instability, and misalignment detection.
+
+Deterministic capability:
+
+- GORT modifies its own programs while preserving identity constraints and core invariants.
+
+##### Phase 19: Behavioral Memory and Consolidation
+
+What it introduces:
+
+- Long-horizon storage, retrieval, and consolidation of program behaviors.
+
+Deterministic capability:
+
+- GORT accumulates stable behavioral memory and reuses consolidated program structures.
+
+##### Phase 20: Behavioral Intelligence
+
+What it introduces:
+
+- Full deterministic co-evolution of identity, geometry, understanding, intent, programs, arbitration, repair, and memory.
+
+Deterministic capability:
+
+- GORT exhibits behavioral intelligence from governed geometric-program dynamics rather than statistical training.
 
 Schema-versioned regression detection:
 
@@ -325,7 +453,7 @@ The gauntlet can detect convergence regressions by comparing the current summary
 - Regression delta: `regression_delta` field in JSON with:
   - `regression_detected`: boolean flag
   - `regression_messages`: list of specific changes (e.g., "overall: PASS → FAIL")
-  - `regression_fields`: which fields changed (checks, overall, deep_time)
+    - `regression_fields`: which fields changed (checks, overall, deep_time, phase12)
   - `baseline_schema_version` / `current_schema_version`: version compatibility info
 
 Example: Enable regression detection for CI pipeline:
@@ -411,6 +539,26 @@ Normal gauntlet mode:
 set -euo pipefail
 ./scripts/phase80_gauntlet.sh
 ```
+
+Top-level gauntlet summary example (truncated):
+
+```text
+=== GORT PHASE62/PHASE80 GAUNTLET SUMMARY ===
+check                            | result
+---------------------------------+-------------------------------
+phase90_geometry_integrity       | PASS
+phase10_top_level_acceptance     | PASS
+phase11_multi_loop_convergence   | PASS
+phase12_manifest_invariants      | PASS
+phase12_emergent_programs_gate   | PASS
+phase12_drift_window             | PASS (no_drift)
+phase12_top_level_summary        | PASS
+schema_regression_detection      | PASS (no regression)
+overall                          | PASS
+=== END SUMMARY ===
+```
+
+The live output includes additional rows; this excerpt highlights the top-level governance checks for Phase 9/10/11/12.
 
 JSON self-test mode (expected to fail validation and return non-zero):
 

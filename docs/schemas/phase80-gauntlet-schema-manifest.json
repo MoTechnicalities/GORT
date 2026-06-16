@@ -22,5 +22,30 @@
       "requires_explicit_migration": false
     }
   },
+  "phase12_invariants": {
+    "gate_name": "phase12_emergent_cognitive_program",
+    "acceptance_rules": [
+      "manifold.manifold_well_formed must be true before synthesis",
+      "plan.operator_plan_well_formed must be true before synthesis",
+      "manifold.manifold_signature must match plan.manifold_signature",
+      "plan.operators must be non-empty",
+      "every synthesized step must have a non-empty step_kind and positive continuity_guard_percent and manifold_alignment_percent",
+      "program.step_count must be greater than zero",
+      "program.resonance_gate_percent must be between 1 and 100",
+      "program.program_well_formed must be true",
+      "telemetry must be derived from synthesized program fields only"
+    ],
+    "determinism_rules": [
+      "identical manifold and plan inputs must synthesize the same program_signature and program_profile_hash",
+      "telemetry emission must be replay-stable for identical program inputs"
+    ],
+    "drift_window_invariants": [
+      "phase12_drift_window must be emitted in gauntlet summary when phase12 data is present",
+      "phase12_drift_window.replay_loop_count must be positive",
+      "phase12_drift_window must record baseline_available and drift_detected flags",
+      "phase12_drift_window must include current signature hash and telemetry digest",
+      "when baseline is available, phase12_drift_window must include baseline signature hash and telemetry digest"
+    ]
+  },
   "_comment": "Schema evolution rules: new versions must either be backward-compatible (compatible_with lists older versions) or declare breaking_changes + set requires_explicit_migration=true"
 }
