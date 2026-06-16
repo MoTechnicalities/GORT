@@ -1,5 +1,6 @@
 use gort::{
     Phase70AdjustmentLog, Phase70AdjustmentLogEntry, Phase70StructuralParameterRegistry,
+    Phase70StructuralParameterSpec,
     Phase80FrameLocalParameterRegistry, Phase80FrameParameterSnapshot, Phase80FrameParameterValue,
     Phase80FrameTransitionEvent, phase80_build_frame_local_parameter_registry,
     phase80_emit_episode_telemetry, phase80_emit_frame_transition_telemetry,
@@ -14,6 +15,22 @@ use gort::{
     phase90_form_cognitive_manifold, phase90_emit_manifold_telemetry,
     phase90_compute_multishape_interaction_dynamics, phase90_emit_interaction_dynamics_telemetry,
     phase90_build_geometry_driven_adjustment_plan, phase90_emit_geometry_operator_telemetry,
+    Phase90GeometryDrivenAdjustmentOperator, Phase90GeometryDrivenAdjustmentPlan,
+    phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
+    phase10_emit_runtime_adaptation_telemetry,
+    Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
+    Phase10Slice4RuntimeContinuityPolicy, phase10_validate_runtime_continuity_preservation,
+    phase10_integrate_operator_plan_into_runtime_transitions,
+    phase10_execute_closed_loop_integrity_stage,
+    phase10_emit_operator_runtime_integration_telemetry,
+    phase10_regenerate_phase9_seed_from_adapted_episode,
+    phase10_emit_runtime_feedback_telemetry,
+    phase10_run_top_level_acceptance_stage,
+    phase10_emit_top_level_acceptance_telemetry,
+    phase10_run_slice7_multicycle_replay_acceptance_stage,
+    phase10_emit_slice7_multicycle_telemetry,
+    phase11_run_multi_loop_convergence_stage,
+    phase11_emit_multi_loop_convergence_telemetry,
 };
 
 const PARAM: &str = "continuity_pressure_boost";
@@ -1502,4 +1519,1319 @@ fn gauntlet_phase9_gate_d_full_phase9_telemetry_chain_is_replay_stable_over_50_r
         assert_eq!(phase90_emit_interaction_dynamics_telemetry(&current.1), baseline_dynamics_telemetry);
         assert_eq!(phase90_emit_geometry_operator_telemetry(&current.2), baseline_operator_telemetry);
     }
+}
+
+// ============ Phase 10 Slice 1: Runtime Adaptation Feedback ============
+
+#[test]
+fn gauntlet_phase10_runtime_adaptation_bridge_feeds_back_into_episode_execution() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_feedback",
+        &[
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p10f1", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p10f2", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p10f3", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p10f4", "none", false, 1, 1, 0),
+                        entry(3, "p10f5", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+            vec![
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p10f6", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p10f7", "none", true, 1, 2, 1),
+                    ],
+                },
+                Phase70AdjustmentLog {
+                    entries: vec![
+                        entry(1, "p10f8", "continuity_insensitive", true, 0, 1, 1),
+                        entry(2, "p10f9", "none", true, 1, 2, 1),
+                    ],
+                },
+            ],
+        ],
+        &registry,
+    );
+
+    assert!(dynamics.dynamics_well_formed);
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let trace = phase10_run_runtime_adaptation_episode("gauntlet_p10_adapted", &bridge, &registry)
+        .expect("adapted trace");
+
+    assert!(bridge.adaptation_well_formed);
+    assert!(bridge.adapted_entry_count > 0);
+    assert!(!trace.steps.is_empty());
+}
+
+#[test]
+fn gauntlet_phase10_runtime_adaptation_is_deterministic_over_100_replays() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_replay",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10r1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10r2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10r3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10r4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let mut hashes = Vec::new();
+    for _ in 0..100 {
+        let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+        let trace =
+            phase10_run_runtime_adaptation_episode("gauntlet_p10_replay_episode", &bridge, &registry)
+                .expect("trace");
+        hashes.push(format!(
+            "{}:{}:{}",
+            bridge.adaptation_profile_hash,
+            bridge.adapted_entry_count,
+            trace.steps.len(),
+        ));
+    }
+
+    let first_hash = &hashes[0];
+    for (index, hash) in hashes.iter().enumerate() {
+        assert_eq!(
+            hash, first_hash,
+            "phase10 adaptation replay hash mismatch at replay {}: {} vs {}",
+            index + 1,
+            hash,
+            first_hash
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase10_runtime_adaptation_telemetry_is_canonical_and_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let telemetry_a = phase10_emit_runtime_adaptation_telemetry(&bridge);
+    let telemetry_b = phase10_emit_runtime_adaptation_telemetry(&bridge);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("manifold_signature="));
+    assert!(telemetry_a.contains("operator_plan_hash="));
+    assert!(telemetry_a.contains("entry_count="));
+    assert!(telemetry_a.contains("aggregate_delta="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase10_slice2_multi_parameter_routing_is_deterministic_and_valid() {
+    let mut registry = Phase70StructuralParameterRegistry::canonical();
+    registry.parameters = vec![
+        Phase70StructuralParameterSpec {
+            name: "continuity_pressure_boost".to_string(),
+            env_key: "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST".to_string(),
+            min_value: 0,
+            max_value: 6,
+            delta: 1,
+            inverse_delta: -1,
+        },
+        Phase70StructuralParameterSpec {
+            name: "coherence_gradient_trim".to_string(),
+            env_key: "GORT_PHASE70_COHERENCE_GRADIENT_TRIM".to_string(),
+            min_value: 0,
+            max_value: 4,
+            delta: 1,
+            inverse_delta: -1,
+        },
+        Phase70StructuralParameterSpec {
+            name: "boundary_tension_relief".to_string(),
+            env_key: "GORT_PHASE70_BOUNDARY_TENSION_RELIEF".to_string(),
+            min_value: 0,
+            max_value: 5,
+            delta: 1,
+            inverse_delta: -1,
+        },
+    ];
+
+    let (manifold, _dynamics, _plan_fixture) = phase90_plan_fixture(
+        "gauntlet_p10_slice2",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s2a1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s2a2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s2b1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s2b2", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let plan = Phase90GeometryDrivenAdjustmentPlan {
+        manifold_signature: manifold.manifold_signature,
+        operator_count: 4,
+        dominant_operator_kind: "continuity_lift".to_string(),
+        aggregate_adjustment_pressure_percent: 72,
+        operators: vec![
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_op_1".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 1,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 80,
+                continuity_bias_percent: 70,
+                manifold_alignment_percent: 75,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_op_2".to_string(),
+                target_shape_index: 2,
+                source_shape_index: 0,
+                operator_kind: "gradient_smooth".to_string(),
+                adjustment_pressure_percent: 78,
+                continuity_bias_percent: 74,
+                manifold_alignment_percent: 71,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_op_3".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 2,
+                operator_kind: "resonance_reweight".to_string(),
+                adjustment_pressure_percent: 82,
+                continuity_bias_percent: 68,
+                manifold_alignment_percent: 73,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_op_4".to_string(),
+                target_shape_index: 3,
+                source_shape_index: 1,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 75,
+                continuity_bias_percent: 72,
+                manifold_alignment_percent: 70,
+            },
+        ],
+        operator_plan_signature: "gauntlet_slice2_multi_parameter_fixture".to_string(),
+        operator_plan_hash: "gauntlet_slice2_multi_parameter_fixture_hash".to_string(),
+        operator_plan_well_formed: true,
+    };
+
+    let bridge_a = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge a");
+    let bridge_b = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge b");
+
+    assert!(bridge_a.adaptation_well_formed);
+    assert!(bridge_a.routed_parameter_count >= 2);
+    assert_eq!(bridge_a, bridge_b);
+}
+
+#[test]
+fn gauntlet_phase10_slice2_acceptance_gate_passes_with_diverse_routing_at_threshold() {
+    let mut registry = Phase70StructuralParameterRegistry::canonical();
+    registry.parameters = vec![
+        Phase70StructuralParameterSpec {
+            name: "continuity_pressure_boost".to_string(),
+            env_key: "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST".to_string(),
+            min_value: 0,
+            max_value: 6,
+            delta: 1,
+            inverse_delta: -1,
+        },
+        Phase70StructuralParameterSpec {
+            name: "coherence_gradient_trim".to_string(),
+            env_key: "GORT_PHASE70_COHERENCE_GRADIENT_TRIM".to_string(),
+            min_value: 0,
+            max_value: 4,
+            delta: 1,
+            inverse_delta: -1,
+        },
+    ];
+
+    let plan = Phase90GeometryDrivenAdjustmentPlan {
+        manifold_signature: "gauntlet_slice2_acceptance_pass".to_string(),
+        operator_count: 3,
+        dominant_operator_kind: "continuity_lift".to_string(),
+        aggregate_adjustment_pressure_percent: 72,
+        operators: vec![
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_acceptance_pass_1".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 0,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 80,
+                continuity_bias_percent: 70,
+                manifold_alignment_percent: 75,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_acceptance_pass_2".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 0,
+                operator_kind: "gradient_smooth".to_string(),
+                adjustment_pressure_percent: 78,
+                continuity_bias_percent: 74,
+                manifold_alignment_percent: 71,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_acceptance_pass_3".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 1,
+                operator_kind: "resonance_reweight".to_string(),
+                adjustment_pressure_percent: 82,
+                continuity_bias_percent: 68,
+                manifold_alignment_percent: 73,
+            },
+        ],
+        operator_plan_signature: "gauntlet_slice2_acceptance_pass_sig".to_string(),
+        operator_plan_hash: "gauntlet_slice2_acceptance_pass_hash".to_string(),
+        operator_plan_well_formed: true,
+    };
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let policy = Phase10Slice2RoutingAcceptancePolicy::canonical();
+
+    phase10_validate_slice2_routing_acceptance_gate(&plan, &bridge, &policy)
+        .expect("acceptance should pass");
+}
+
+#[test]
+fn gauntlet_phase10_slice2_acceptance_gate_rejects_low_diversity_when_threshold_met() {
+    let mut registry = Phase70StructuralParameterRegistry::canonical();
+    registry.parameters = vec![Phase70StructuralParameterSpec {
+        name: "continuity_pressure_boost".to_string(),
+        env_key: "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST".to_string(),
+        min_value: 0,
+        max_value: 6,
+        delta: 1,
+        inverse_delta: -1,
+    }];
+
+    let plan = Phase90GeometryDrivenAdjustmentPlan {
+        manifold_signature: "gauntlet_slice2_acceptance_reject".to_string(),
+        operator_count: 3,
+        dominant_operator_kind: "continuity_lift".to_string(),
+        aggregate_adjustment_pressure_percent: 72,
+        operators: vec![
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_acceptance_reject_1".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 0,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 80,
+                continuity_bias_percent: 70,
+                manifold_alignment_percent: 75,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_acceptance_reject_2".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 0,
+                operator_kind: "gradient_smooth".to_string(),
+                adjustment_pressure_percent: 78,
+                continuity_bias_percent: 74,
+                manifold_alignment_percent: 71,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice2_acceptance_reject_3".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 1,
+                operator_kind: "resonance_reweight".to_string(),
+                adjustment_pressure_percent: 82,
+                continuity_bias_percent: 68,
+                manifold_alignment_percent: 73,
+            },
+        ],
+        operator_plan_signature: "gauntlet_slice2_acceptance_reject_sig".to_string(),
+        operator_plan_hash: "gauntlet_slice2_acceptance_reject_hash".to_string(),
+        operator_plan_well_formed: true,
+    };
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let policy = Phase10Slice2RoutingAcceptancePolicy::canonical();
+
+    let err = phase10_validate_slice2_routing_acceptance_gate(&plan, &bridge, &policy)
+        .expect_err("acceptance should reject low diversity");
+    assert!(err.contains("routed parameter diversity"));
+}
+
+#[test]
+fn gauntlet_phase10_slice3_operator_runtime_integration_is_deterministic() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice3",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s3a1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s3a2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s3b1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s3b2", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let integration_a = phase10_integrate_operator_plan_into_runtime_transitions(&plan, &bridge, &registry)
+        .expect("integration a");
+    let integration_b = phase10_integrate_operator_plan_into_runtime_transitions(&plan, &bridge, &registry)
+        .expect("integration b");
+
+    assert!(integration_a.integration_well_formed);
+    assert_eq!(integration_a, integration_b);
+}
+
+#[test]
+fn gauntlet_phase10_slice3_operator_runtime_integration_telemetry_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice3_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s3t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s3t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s3t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s3t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let integration =
+        phase10_integrate_operator_plan_into_runtime_transitions(&plan, &bridge, &registry)
+            .expect("integration");
+
+    let telemetry_a = phase10_emit_operator_runtime_integration_telemetry(&integration);
+    let telemetry_b = phase10_emit_operator_runtime_integration_telemetry(&integration);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("operator_plan_hash="));
+    assert!(telemetry_a.contains("weighted_transition_count="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase10_slice4_runtime_continuity_preservation_accepts_canonical_integration() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice4",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s4a1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s4a2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s4b1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s4b2", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let integration =
+        phase10_integrate_operator_plan_into_runtime_transitions(&plan, &bridge, &registry)
+            .expect("integration");
+    let policy = Phase10Slice4RuntimeContinuityPolicy::canonical();
+
+    phase10_validate_runtime_continuity_preservation(&plan, &bridge, &integration, &policy)
+        .expect("canonical integration should preserve continuity");
+}
+
+#[test]
+fn gauntlet_phase10_slice4_runtime_continuity_rejects_with_canonical_reason_code() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice4_reject",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s4r1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s4r2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s4r3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s4r4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let mut integration =
+        phase10_integrate_operator_plan_into_runtime_transitions(&plan, &bridge, &registry)
+            .expect("integration");
+    integration.weighted_transitions[0].continuity_preserved = false;
+    integration.weighted_transitions[0].transition_reason =
+        "phase10_forced_continuity_break".to_string();
+
+    let policy = Phase10Slice4RuntimeContinuityPolicy::canonical();
+    let err = phase10_validate_runtime_continuity_preservation(&plan, &bridge, &integration, &policy)
+        .expect_err("continuity violation must be rejected");
+
+    assert_eq!(err, "phase10_slice4_reject_continuity_violation");
+}
+
+#[test]
+fn gauntlet_phase10_slice4_runtime_continuity_validation_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice4_replay",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s4v1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s4v2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s4v3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s4v4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let bridge = phase10_build_runtime_adaptation_bridge(&plan, &registry).expect("bridge");
+    let integration =
+        phase10_integrate_operator_plan_into_runtime_transitions(&plan, &bridge, &registry)
+            .expect("integration");
+    let policy = Phase10Slice4RuntimeContinuityPolicy::canonical();
+
+    let result_a = phase10_validate_runtime_continuity_preservation(&plan, &bridge, &integration, &policy);
+    let result_b = phase10_validate_runtime_continuity_preservation(&plan, &bridge, &integration, &policy);
+
+    assert_eq!(result_a, result_b);
+    assert!(result_a.is_ok());
+}
+
+#[test]
+fn gauntlet_phase10_slice5_closed_loop_integrity_stage_is_well_formed() {
+    let mut registry = Phase70StructuralParameterRegistry::canonical();
+    registry.parameters = vec![
+        Phase70StructuralParameterSpec {
+            name: "continuity_pressure_boost".to_string(),
+            env_key: "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST".to_string(),
+            min_value: 0,
+            max_value: 6,
+            delta: 1,
+            inverse_delta: -1,
+        },
+        Phase70StructuralParameterSpec {
+            name: "coherence_gradient_trim".to_string(),
+            env_key: "GORT_PHASE70_COHERENCE_GRADIENT_TRIM".to_string(),
+            min_value: 0,
+            max_value: 4,
+            delta: 1,
+            inverse_delta: -1,
+        },
+    ];
+
+    let plan = Phase90GeometryDrivenAdjustmentPlan {
+        manifold_signature: "gauntlet_slice5_closed_loop".to_string(),
+        operator_count: 4,
+        dominant_operator_kind: "continuity_lift".to_string(),
+        aggregate_adjustment_pressure_percent: 72,
+        operators: vec![
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_op_1".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 0,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 80,
+                continuity_bias_percent: 70,
+                manifold_alignment_percent: 75,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_op_2".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 0,
+                operator_kind: "gradient_smooth".to_string(),
+                adjustment_pressure_percent: 78,
+                continuity_bias_percent: 74,
+                manifold_alignment_percent: 71,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_op_3".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 1,
+                operator_kind: "resonance_reweight".to_string(),
+                adjustment_pressure_percent: 82,
+                continuity_bias_percent: 68,
+                manifold_alignment_percent: 73,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_op_4".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 1,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 75,
+                continuity_bias_percent: 72,
+                manifold_alignment_percent: 70,
+            },
+        ],
+        operator_plan_signature: "gauntlet_slice5_closed_loop_sig".to_string(),
+        operator_plan_hash: "gauntlet_slice5_closed_loop_hash".to_string(),
+        operator_plan_well_formed: true,
+    };
+
+    let stage = phase10_execute_closed_loop_integrity_stage(
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("closed loop stage");
+
+    assert!(stage.integrity_well_formed);
+    assert!(stage.continuity_gate_passed);
+    assert!(stage.routed_parameter_count >= 2);
+}
+
+#[test]
+fn gauntlet_phase10_slice5_closed_loop_integrity_stage_rejects_slice2_failure() {
+    let mut registry = Phase70StructuralParameterRegistry::canonical();
+    registry.parameters = vec![Phase70StructuralParameterSpec {
+        name: "continuity_pressure_boost".to_string(),
+        env_key: "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST".to_string(),
+        min_value: 0,
+        max_value: 6,
+        delta: 1,
+        inverse_delta: -1,
+    }];
+
+    let plan = Phase90GeometryDrivenAdjustmentPlan {
+        manifold_signature: "gauntlet_slice5_reject".to_string(),
+        operator_count: 3,
+        dominant_operator_kind: "continuity_lift".to_string(),
+        aggregate_adjustment_pressure_percent: 72,
+        operators: vec![
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_reject_1".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 0,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 80,
+                continuity_bias_percent: 70,
+                manifold_alignment_percent: 75,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_reject_2".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 0,
+                operator_kind: "gradient_smooth".to_string(),
+                adjustment_pressure_percent: 78,
+                continuity_bias_percent: 74,
+                manifold_alignment_percent: 71,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_reject_3".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 1,
+                operator_kind: "resonance_reweight".to_string(),
+                adjustment_pressure_percent: 82,
+                continuity_bias_percent: 68,
+                manifold_alignment_percent: 73,
+            },
+        ],
+        operator_plan_signature: "gauntlet_slice5_reject_sig".to_string(),
+        operator_plan_hash: "gauntlet_slice5_reject_hash".to_string(),
+        operator_plan_well_formed: true,
+    };
+
+    let err = phase10_execute_closed_loop_integrity_stage(
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect_err("slice2 failure should fail closed-loop stage");
+
+    assert!(err.contains("routed parameter diversity"));
+}
+
+#[test]
+fn gauntlet_phase10_slice5_closed_loop_integrity_stage_is_replay_stable() {
+    let mut registry = Phase70StructuralParameterRegistry::canonical();
+    registry.parameters = vec![
+        Phase70StructuralParameterSpec {
+            name: "continuity_pressure_boost".to_string(),
+            env_key: "GORT_PHASE70_CONTINUITY_PRESSURE_BOOST".to_string(),
+            min_value: 0,
+            max_value: 6,
+            delta: 1,
+            inverse_delta: -1,
+        },
+        Phase70StructuralParameterSpec {
+            name: "coherence_gradient_trim".to_string(),
+            env_key: "GORT_PHASE70_COHERENCE_GRADIENT_TRIM".to_string(),
+            min_value: 0,
+            max_value: 4,
+            delta: 1,
+            inverse_delta: -1,
+        },
+    ];
+
+    let plan = Phase90GeometryDrivenAdjustmentPlan {
+        manifold_signature: "gauntlet_slice5_replay".to_string(),
+        operator_count: 3,
+        dominant_operator_kind: "continuity_lift".to_string(),
+        aggregate_adjustment_pressure_percent: 72,
+        operators: vec![
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_replay_1".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 0,
+                operator_kind: "continuity_lift".to_string(),
+                adjustment_pressure_percent: 80,
+                continuity_bias_percent: 70,
+                manifold_alignment_percent: 75,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_replay_2".to_string(),
+                target_shape_index: 1,
+                source_shape_index: 0,
+                operator_kind: "gradient_smooth".to_string(),
+                adjustment_pressure_percent: 78,
+                continuity_bias_percent: 74,
+                manifold_alignment_percent: 71,
+            },
+            Phase90GeometryDrivenAdjustmentOperator {
+                operator_id: "gauntlet_slice5_replay_3".to_string(),
+                target_shape_index: 0,
+                source_shape_index: 1,
+                operator_kind: "resonance_reweight".to_string(),
+                adjustment_pressure_percent: 82,
+                continuity_bias_percent: 68,
+                manifold_alignment_percent: 73,
+            },
+        ],
+        operator_plan_signature: "gauntlet_slice5_replay_sig".to_string(),
+        operator_plan_hash: "gauntlet_slice5_replay_hash".to_string(),
+        operator_plan_well_formed: true,
+    };
+
+    let stage_a = phase10_execute_closed_loop_integrity_stage(
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("stage a");
+    let stage_b = phase10_execute_closed_loop_integrity_stage(
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("stage b");
+
+    assert_eq!(stage_a, stage_b);
+}
+
+#[test]
+fn gauntlet_phase10_slice6_feedback_regenerates_phase9_seed_material() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice6",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s6a1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s6a2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s6b1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s6b2", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let feedback = phase10_regenerate_phase9_seed_from_adapted_episode(
+        "gauntlet_phase10_slice6_feedback",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("feedback");
+
+    assert!(feedback.feedback_well_formed);
+    assert!(feedback.regenerated_hook.integration_ready);
+    assert!(feedback.regenerated_seed.geometry_well_formed);
+}
+
+#[test]
+fn gauntlet_phase10_slice6_feedback_seed_regeneration_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice6_replay",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s6r1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s6r2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s6r3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s6r4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let feedback_a = phase10_regenerate_phase9_seed_from_adapted_episode(
+        "gauntlet_phase10_slice6_feedback_replay",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("feedback a");
+    let feedback_b = phase10_regenerate_phase9_seed_from_adapted_episode(
+        "gauntlet_phase10_slice6_feedback_replay",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("feedback b");
+
+    assert_eq!(feedback_a, feedback_b);
+}
+
+#[test]
+fn gauntlet_phase10_slice6_feedback_telemetry_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice6_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s6t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s6t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s6t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s6t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let feedback = phase10_regenerate_phase9_seed_from_adapted_episode(
+        "gauntlet_phase10_slice6_feedback_telemetry",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+    )
+    .expect("feedback");
+
+    let telemetry_a = phase10_emit_runtime_feedback_telemetry(&feedback);
+    let telemetry_b = phase10_emit_runtime_feedback_telemetry(&feedback);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("seed_hash="));
+    assert!(telemetry_a.contains("hook_ready=true"));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase10_top_level_acceptance_stage_is_replay_stable_over_repeated_regenerations() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_top_level",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10ta1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10ta2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10tb1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10tb2", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let acceptance = phase10_run_top_level_acceptance_stage(
+        "gauntlet_phase10_top_level_acceptance",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        50,
+    )
+    .expect("acceptance");
+
+    assert!(acceptance.acceptance_well_formed);
+    assert_eq!(acceptance.replay_count, 50);
+}
+
+#[test]
+fn gauntlet_phase10_top_level_acceptance_stage_rejects_low_replay_count_with_canonical_code() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_top_level_reject",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10tr1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10tr2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10tr3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10tr4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let err = phase10_run_top_level_acceptance_stage(
+        "gauntlet_phase10_top_level_acceptance_reject",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        1,
+    )
+    .expect_err("low replay count should fail acceptance");
+
+    assert_eq!(err, "phase10_top_level_reject_replay_count_too_low");
+}
+
+#[test]
+fn gauntlet_phase10_top_level_acceptance_telemetry_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_top_level_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10tt1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10tt2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10tt3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10tt4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let acceptance = phase10_run_top_level_acceptance_stage(
+        "gauntlet_phase10_top_level_acceptance_telemetry",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        20,
+    )
+    .expect("acceptance");
+
+    let telemetry_a = phase10_emit_top_level_acceptance_telemetry(&acceptance);
+    let telemetry_b = phase10_emit_top_level_acceptance_telemetry(&acceptance);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("replay_count=20"));
+    assert!(telemetry_a.contains("baseline_feedback_hash="));
+    assert!(telemetry_a.contains("baseline_seed_hash="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase10_slice7_multicycle_replay_acceptance_is_well_formed() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice7",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s71", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s72", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s73", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s74", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let acceptance = phase10_run_slice7_multicycle_replay_acceptance_stage(
+        "gauntlet_phase10_slice7_multicycle",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        7,
+    )
+    .expect("slice7 acceptance");
+
+    assert!(acceptance.acceptance_well_formed);
+    assert_eq!(acceptance.cycle_count, 7);
+    assert_eq!(acceptance.cycle_plan_hashes.len(), 7);
+}
+
+#[test]
+fn gauntlet_phase10_slice7_multicycle_replay_acceptance_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice7_replay",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s7r1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s7r2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s7r3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s7r4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let acceptance_a = phase10_run_slice7_multicycle_replay_acceptance_stage(
+        "gauntlet_phase10_slice7_multicycle_replay",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        6,
+    )
+    .expect("acceptance a");
+    let acceptance_b = phase10_run_slice7_multicycle_replay_acceptance_stage(
+        "gauntlet_phase10_slice7_multicycle_replay",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        6,
+    )
+    .expect("acceptance b");
+
+    assert_eq!(acceptance_a, acceptance_b);
+}
+
+#[test]
+fn gauntlet_phase10_slice7_multicycle_replay_rejects_low_cycle_count_with_canonical_code() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice7_reject",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s7x1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s7x2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s7x3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s7x4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let err = phase10_run_slice7_multicycle_replay_acceptance_stage(
+        "gauntlet_phase10_slice7_multicycle_reject",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        1,
+    )
+    .expect_err("low cycle count should fail");
+
+    assert_eq!(err, "phase10_slice7_reject_cycle_count_too_low");
+}
+
+#[test]
+fn gauntlet_phase10_slice7_multicycle_telemetry_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p10_slice7_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s7t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s7t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p10s7t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p10s7t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let acceptance = phase10_run_slice7_multicycle_replay_acceptance_stage(
+        "gauntlet_phase10_slice7_multicycle_telemetry",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        5,
+    )
+    .expect("slice7 acceptance");
+
+    let telemetry_a = phase10_emit_slice7_multicycle_telemetry(&acceptance);
+    let telemetry_b = phase10_emit_slice7_multicycle_telemetry(&acceptance);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("baseline_plan_hash="));
+    assert!(telemetry_a.contains("cycle_count=5"));
+    assert!(telemetry_a.contains("acceptance_hash="));
+    assert!(telemetry_a.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase11_multi_loop_convergence_is_well_formed() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p11_loop",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11l1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11l2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11l3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11l4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let convergence = phase11_run_multi_loop_convergence_stage(
+        "gauntlet_phase11_multi_loop",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        5,
+        4,
+    )
+    .expect("convergence");
+
+    assert!(convergence.convergence_well_formed);
+    assert_eq!(convergence.loop_count, 5);
+    assert_eq!(convergence.cycle_count_per_loop, 4);
+    assert_eq!(convergence.loop_acceptance_hashes.len(), 5);
+}
+
+#[test]
+fn gauntlet_phase11_multi_loop_convergence_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p11_loop_replay",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11r1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11r2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11r3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11r4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let stage_a = phase11_run_multi_loop_convergence_stage(
+        "gauntlet_phase11_multi_loop_replay",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        4,
+        4,
+    )
+    .expect("stage a");
+    let stage_b = phase11_run_multi_loop_convergence_stage(
+        "gauntlet_phase11_multi_loop_replay",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        4,
+        4,
+    )
+    .expect("stage b");
+
+    assert_eq!(stage_a, stage_b);
+}
+
+#[test]
+fn gauntlet_phase11_multi_loop_convergence_rejects_low_loop_count_with_canonical_code() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p11_loop_reject",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11x1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11x2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11x3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11x4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let err = phase11_run_multi_loop_convergence_stage(
+        "gauntlet_phase11_multi_loop_reject",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        1,
+        4,
+    )
+    .expect_err("low loop count should fail");
+
+    assert_eq!(err, "phase11_reject_loop_count_too_low");
+}
+
+#[test]
+fn gauntlet_phase11_multi_loop_convergence_telemetry_is_replay_stable() {
+    let registry = Phase70StructuralParameterRegistry::canonical();
+    let (_manifold, _dynamics, plan) = phase90_plan_fixture(
+        "gauntlet_p11_loop_telem",
+        &[
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11t1", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11t2", "none", true, 1, 2, 1),
+                ],
+            }],
+            vec![Phase70AdjustmentLog {
+                entries: vec![
+                    entry(1, "p11t3", "continuity_insensitive", true, 0, 1, 1),
+                    entry(2, "p11t4", "none", true, 1, 2, 1),
+                ],
+            }],
+        ],
+        &registry,
+    );
+
+    let convergence = phase11_run_multi_loop_convergence_stage(
+        "gauntlet_phase11_multi_loop_telemetry",
+        &plan,
+        &registry,
+        &Phase10Slice2RoutingAcceptancePolicy::canonical(),
+        &Phase10Slice4RuntimeContinuityPolicy::canonical(),
+        3,
+        3,
+    )
+    .expect("convergence");
+
+    let telemetry_a = phase11_emit_multi_loop_convergence_telemetry(&convergence);
+    let telemetry_b = phase11_emit_multi_loop_convergence_telemetry(&convergence);
+
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("baseline_plan_hash="));
+    assert!(telemetry_a.contains("loop_count=3"));
+    assert!(telemetry_a.contains("cycle_count_per_loop=3"));
+    assert!(telemetry_a.contains("convergence_hash="));
+    assert!(telemetry_a.contains("well_formed=true"));
 }

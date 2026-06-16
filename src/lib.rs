@@ -52,6 +52,7 @@ pub mod cognition {
     pub mod phase90_cognitive_manifolds;
     pub mod phase90_multishape_interaction_dynamics;
     pub mod phase90_geometry_driven_adjustment_operators;
+    pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
     pub use constraint::SemanticConstraint;
@@ -153,6 +154,34 @@ pub mod cognition {
         Phase90GeometryDrivenAdjustmentPlan,
         phase90_build_geometry_driven_adjustment_plan,
         phase90_emit_geometry_operator_telemetry,
+    };
+    pub use phase10_runtime_adaptation::{
+        Phase10RuntimeAdaptationBridge,
+        Phase10Slice2RoutingAcceptancePolicy,
+        Phase10Slice4RuntimeContinuityPolicy,
+        Phase10OperatorWeightedFrameTransition,
+        Phase10OperatorRuntimeIntegration,
+        Phase10ClosedLoopIntegrityStage,
+        Phase10RuntimeFeedbackSeedLoop,
+        Phase10TopLevelAcceptanceStage,
+        Phase10Slice7MultiCycleReplayAcceptanceStage,
+        Phase11MultiLoopConvergenceStage,
+        phase10_build_runtime_adaptation_bridge,
+        phase10_validate_slice2_routing_acceptance_gate,
+        phase10_validate_runtime_continuity_preservation,
+        phase10_integrate_operator_plan_into_runtime_transitions,
+        phase10_execute_closed_loop_integrity_stage,
+        phase10_regenerate_phase9_seed_from_adapted_episode,
+        phase10_run_top_level_acceptance_stage,
+        phase10_run_slice7_multicycle_replay_acceptance_stage,
+        phase11_run_multi_loop_convergence_stage,
+        phase10_run_runtime_adaptation_episode,
+        phase10_emit_runtime_adaptation_telemetry,
+        phase10_emit_operator_runtime_integration_telemetry,
+        phase10_emit_runtime_feedback_telemetry,
+        phase10_emit_top_level_acceptance_telemetry,
+        phase10_emit_slice7_multicycle_telemetry,
+        phase11_emit_multi_loop_convergence_telemetry,
     };
 }
 
@@ -286,6 +315,32 @@ pub use cognition::{
     Phase90GeometryDrivenAdjustmentPlan,
     phase90_build_geometry_driven_adjustment_plan,
     phase90_emit_geometry_operator_telemetry,
+    Phase10RuntimeAdaptationBridge,
+    Phase10Slice2RoutingAcceptancePolicy,
+    Phase10Slice4RuntimeContinuityPolicy,
+    Phase10OperatorWeightedFrameTransition,
+    Phase10OperatorRuntimeIntegration,
+    Phase10ClosedLoopIntegrityStage,
+    Phase10RuntimeFeedbackSeedLoop,
+    Phase10TopLevelAcceptanceStage,
+    Phase10Slice7MultiCycleReplayAcceptanceStage,
+    Phase11MultiLoopConvergenceStage,
+    phase10_build_runtime_adaptation_bridge,
+    phase10_validate_slice2_routing_acceptance_gate,
+    phase10_validate_runtime_continuity_preservation,
+    phase10_integrate_operator_plan_into_runtime_transitions,
+    phase10_execute_closed_loop_integrity_stage,
+    phase10_regenerate_phase9_seed_from_adapted_episode,
+    phase10_run_top_level_acceptance_stage,
+    phase10_run_slice7_multicycle_replay_acceptance_stage,
+    phase11_run_multi_loop_convergence_stage,
+    phase10_run_runtime_adaptation_episode,
+    phase10_emit_runtime_adaptation_telemetry,
+    phase10_emit_operator_runtime_integration_telemetry,
+    phase10_emit_runtime_feedback_telemetry,
+    phase10_emit_top_level_acceptance_telemetry,
+    phase10_emit_slice7_multicycle_telemetry,
+    phase11_emit_multi_loop_convergence_telemetry,
     GoalAttractor,
     GoalHierarchy,
     GoalSet,

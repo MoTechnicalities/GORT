@@ -13,21 +13,38 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="/tmp/gort_phase80_gauntlet"
 mkdir -p "$OUT_DIR"
 
+# Hard timeout for the longest integration stage to prevent indefinite hangs.
+PHASE62_INTEGRATION_TIMEOUT_SECONDS="${PHASE62_INTEGRATION_TIMEOUT_SECONDS:-900}"
+
 labels=(
   "phase62_unit_core"
   "phase62_integration_suite"
   "phase80_unit_suite"
   "phase80_slice6_integration_quality"
   "phase90_geometry_integrity"
+  "phase10_slice2_acceptance_gate"
+  "phase10_closed_loop_integrity"
+  "phase10_runtime_feedback_loop"
+  "phase10_top_level_acceptance"
+  "phase10_slice7_multicycle"
+  "phase11_multi_loop_convergence"
+  "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
 
 commands=(
   "cargo test phase62_structural_experiment -- --nocapture --test-threads=1"
-  "cargo test --test phase62_structural -- --nocapture"
+  "timeout --signal=TERM --kill-after=30s ${PHASE62_INTEGRATION_TIMEOUT_SECONDS}s cargo test --test phase62_structural -- --nocapture"
   "cargo test phase80_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_slice6_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase9_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_slice2_acceptance_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_slice5_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_slice6_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_top_level_acceptance_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_slice7_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase11_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
 
