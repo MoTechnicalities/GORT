@@ -664,23 +664,29 @@ GORT is the first system designed for **actual cognition**, not statistical fitt
 
 ## Roadmap
 
-### Phase 1: Cognitive Kernel (Current)
+Status taxonomy used below:
+
+- **Validated in CI**: acceptance gates are explicitly enforced in CI or gauntlet governance checks
+- **Operational but Evolving**: implemented and usable, but still actively refined/extended
+- **Planned**: design direction or future work not yet promoted as operational
+
+### Phase 1: Cognitive Kernel (Status: Operational but Evolving)
 ✅ Core invariants and traits defined  
 ✅ Basic geometric state implementation  
 ✅ Constraint evaluation framework  
 
-### Phase 2: Semantic Field Implementation (In Progress)
+### Phase 2: Semantic Field Implementation (Status: Operational but Evolving)
 ✅ Encode semantic meaning as geometric fields
 ✅ Implement resonance modes for semantic propagation
 ✅ Multi-sense disambiguation through field interference
 
-### Phase 3: Deterministic Parallelism (In Progress)
+### Phase 3: Deterministic Parallelism (Status: Validated in CI)
 ✅ Deterministic scheduler/evaluator contradiction-resolution handoff
 ✅ Reproducible task scheduling
 - Lock-free constraint resolution
 - Parallel reasoning without non-determinism
 
-### Phase 3 Acceptance Gates (Enforced in Tests/CI)
+### Phase 3 Acceptance Gates (Status: Validated in CI)
 - Gate A: Full constraint-to-closure pipeline hash is identical across worker counts
 - Gate B: Full pipeline hash is identical across repeated runs
 - Gate C: Canonicalized audit traces are byte-stable for replay
@@ -688,7 +694,7 @@ GORT is the first system designed for **actual cognition**, not statistical fitt
 
 These gates are asserted in `tests/phase3_acceptance.rs` and run in CI.
 
-### Phase 4: Multi-Frame Cognition (In Progress)
+### Phase 4: Multi-Frame Cognition (Status: Validated in CI)
 ✅ Multi-frame deterministic loop: evaluate -> transform -> resolve -> stabilize -> repeat
 ✅ Cross-frame field sharing and deterministic constraint propagation
 ✅ Resonance-driven inference in iterative frame updates
@@ -697,80 +703,80 @@ These gates are asserted in `tests/phase3_acceptance.rs` and run in CI.
 - Multi-frame contradiction negotiation policies (advanced)
 - Long-horizon iterative reasoning with bounded convergence proofs
 
-### Phase 4 Acceptance Gates (Enforced in Tests/CI)
+### Phase 4 Acceptance Gates (Status: Validated in CI)
 - Gate E: Multi-frame loop converges in K iterations under configured thresholds
 - Gate F: Consolidated memory artifact hash is identical across worker counts
 - Gate G: Consolidated memory artifact hash is stable across repeated replays
 
 These gates are asserted in `tests/phase4_convergence.rs` and run in CI.
 
-### Phase 4.5: Concept Anchors (In Progress)
+### Phase 4.5: Concept Anchors (Status: Validated in CI)
 ✅ Stable low-energy attractor detection in shared semantic fields
 ✅ Anchor persistence under deterministic perturbation tests
 ✅ Anchor registry integrated into multi-frame interpretation loop
 ✅ Anchor-guided stabilization and self-basis continuity checks
 - Internal/external perturbation classifiers driven by anchor drift metrics
 
-### Phase 4.5 Acceptance Gates (Enforced in Tests/CI)
+### Phase 4.5 Acceptance Gates (Status: Validated in CI)
 - Gate H: Concept anchors are registered only after persistence threshold is reached
 - Gate I: Anchor registry hash is invariant across worker counts
 - Gate J: External perturbation changes consolidated memory while preserving at least one anchor basis
 
 These gates are asserted in `tests/phase45_anchors.rs` and run in CI.
 
-### Phase 4.6: Anchor-Weighted Interpretation (In Progress)
+### Phase 4.6: Anchor-Weighted Interpretation (Status: Validated in CI)
 ✅ Anchor-weighted resonance (amplify near-anchor, dampen far-anchor, highlight contradictions)
 ✅ Anchor-guided fusion with anchor/field alignment bias
 ✅ Self-continuity metrics (overlap, drift, stability, anchor-field coherence)
 ✅ Anchor-driven consolidation scores for internal continuity vs external change
 - Anchor-driven adaptive policy learning for long-horizon interpretation
 
-### Phase 4.6 Acceptance Gates (Enforced in Tests/CI)
+### Phase 4.6 Acceptance Gates (Status: Validated in CI)
 - Gate K: Anchor-field coherence improves across iterative runs
 - Gate L: Anchor-weighted consolidation outputs are invariant across worker counts
 - Gate M: Anchor-guided interpretation reduces highlighted contradictions over iterations
 
 These gates are asserted in `tests/phase46_anchor_weighted.rs` and run in CI.
 
-### Phase 4.7: Anchor-Driven Emergent Concept Formation (In Progress)
+### Phase 4.7: Anchor-Driven Emergent Concept Formation (Status: Validated in CI)
 ✅ Emergent concept candidates detected from anchor-aligned stable clusters
 ✅ Persistent candidate promotion into deterministic emergent concept registry
 ✅ Emergent constraint synthesis expands internal ontology deterministically
 ✅ Consolidated memory captures emergent concepts and ontology expansion score
 - Adaptive emergent concept pruning/merging over long-horizon memory windows
 
-### Phase 4.7 Acceptance Gates (Enforced in Tests/CI)
+### Phase 4.7 Acceptance Gates (Status: Validated in CI)
 - Gate N: Emergent concepts form only after anchor-aligned persistence thresholds
 - Gate O: Emergent concept registry and consolidation outputs are worker-invariant
 - Gate P: Emergent constraint synthesis expands ontology with replay-stable signatures
 
 These gates are asserted in `tests/phase47_emergent_concepts.rs` and run in CI.
 
-### Phase 4: Cross-Lingual Auditing (Planned)
+### Phase 4: Cross-Lingual Auditing (Status: Planned)
 - Canonical token normalization across languages
 - Polarity conflict detection (affirm vs. negate)
 - Contradiction counting and marking
 
-### Phase 5: Formal Verification (Future)
+### Phase 5: Formal Verification (Status: Planned)
 - Mechanical proof of invariant satisfaction
 - Safety properties formalized in Coq/Lean
 - Determinism certified at proof level
 
-### Phase 5.0: Anchor-Derived Relational Distance (In Progress)
+### Phase 5.0: Anchor-Derived Relational Distance (Status: Validated in CI)
 ✅ First endogenous relational distance derived from anchor basis overlap and emergent concept overlap
 ✅ Internal continuity and external change deltas integrated into a replay-stable distance score
 ✅ Deterministic near/far ordering across baseline replay vs perturbed runs
 ✅ Worker-invariant relational distance computation across parallel schedules
 - Extend scalar relational distance into higher-order endogenous manifold construction
 
-### Phase 5.0 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.0 Acceptance Gates (Status: Validated in CI)
 - Gate Q: Relational distance orders near/far (baseline replay is nearer than external perturbation)
 - Gate R: Relational distance is invariant across worker counts
 - Gate S: Relational distance detects externally injected change signals
 
 These gates are asserted in `tests/phase50_anchor_distance.rs` and run in CI.
 
-### Phase 5.1: Emergent Cognitive Topology (In Progress)
+### Phase 5.1: Emergent Cognitive Topology (Status: Validated in CI)
 ✅ Neighborhood formation — concept neighborhoods at anchor-derived distance threshold
 ✅ Region detection — connected components of neighborhoods form stable manifolds
 ✅ Boundary detection — concepts bridging distinct regions are topological boundaries
@@ -778,14 +784,14 @@ These gates are asserted in `tests/phase50_anchor_distance.rs` and run in CI.
 ✅ Topology-aware consolidation — canonical topology hash is replay-stable and worker-invariant
 - Topological invariant tracking across iterative memory updates
 
-### Phase 5.1 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.1 Acceptance Gates (Status: Validated in CI)
 - Gate T: Topology forms at least one region from anchor-aligned concept space
 - Gate U: Topology canonical hash is invariant across worker counts
 - Gate V: External perturbation produces a distinct topology signature
 
 These gates are asserted in `tests/phase51_topology.rs` and run in CI.
 
-### Phase 5.2: Cognitive Manifold Dynamics (In Progress)
+### Phase 5.2: Cognitive Manifold Dynamics (Status: Validated in CI)
 ✅ Manifold drift detection — compare sequential topology snapshots for structural change
 ✅ Phase transition detection — threshold-based detection of manifold regime shifts
 ✅ Manifold evolution tracing — track persistent vs transient regions across time
@@ -793,7 +799,7 @@ These gates are asserted in `tests/phase51_topology.rs` and run in CI.
 - Higher-order manifold clustering (regions of regions)
 - Long-horizon topological memory with drift budgeting
 
-### Phase 5.2 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.2 Acceptance Gates (Status: Validated in CI)
 - Gate W: Manifold drift detects topology changes between baseline and perturbed runs
 - Gate X: Drift is zero for identical topology replays
 - Gate Y: Phase transitions detected on external injection; absent on stable replays
@@ -801,7 +807,7 @@ These gates are asserted in `tests/phase51_topology.rs` and run in CI.
 
 These gates are asserted in `tests/phase52_manifold_dynamics.rs` and run in CI.
 
-### Phase 5.3: Cognitive Flow Fields (In Progress)
+### Phase 5.3: Cognitive Flow Fields (Status: Validated in CI)
 ✅ Concept flow vectors — directional drift per concept across topology snapshots
 ✅ Region flow vectors — cohesion trend, size trend, persistence score, attractor flag
 ✅ Anchor-pull field — attractor influence measured from co-resident anchor count
@@ -810,7 +816,7 @@ These gates are asserted in `tests/phase52_manifold_dynamics.rs` and run in CI.
 - Trajectory extrapolation for predicted next topology state
 - Multi-step flow budgeting for anticipatory reasoning
 
-### Phase 5.3 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.3 Acceptance Gates (Status: Validated in CI)
 - Gate AA: Anchor concepts receive positive anchor-pull in flow vectors
 - Gate AB: Perturbation produces non-zero momentum; stable replay produces zero momentum
 - Gate AC: Flow field canonical hash is invariant across worker counts
@@ -818,7 +824,7 @@ These gates are asserted in `tests/phase52_manifold_dynamics.rs` and run in CI.
 
 These gates are asserted in `tests/phase53_flow_fields.rs` and run in CI.
 
-### Phase 5.4: Cognitive Energy & Action Selection (In Progress)
+### Phase 5.4: Cognitive Energy & Action Selection (Status: Validated in CI)
 ✅ Cognitive potential field — energy landscape over topological manifold
 ✅ Energy gradient computation — directional descent scores per region pair
 ✅ Stability energy wells — low-energy attractors derived from region persistence
@@ -826,7 +832,7 @@ These gates are asserted in `tests/phase53_flow_fields.rs` and run in CI.
 ✅ Energy-minimizing trajectory — deterministic trajectory prediction based on energy descent
 - Long-horizon cognitive forecasting with energy budgeting
 
-### Phase 5.4 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.4 Acceptance Gates (Status: Validated in CI)
 - Gate AE: Energy wells form at attractor regions in stable topology
 - Gate AF: Gradient descent follows flow field predictions (gradients ordered by energy delta)
 - Gate AG: Action selection produces valid trajectory minimizing energy
@@ -835,7 +841,7 @@ These gates are asserted in `tests/phase53_flow_fields.rs` and run in CI.
 
 These gates are asserted in `tests/phase54_energy_action.rs` and run in CI.
 
-### Phase 5.5: Cognitive Intent & Goal Formation (In Progress)
+### Phase 5.5: Cognitive Intent & Goal Formation (Status: Validated in CI)
 ✅ Intent field formation — internal goal attractors derived from stable low-energy wells
 ✅ Goal attractor weighting — preference strength from persistence and anchor support
 ✅ Preference gradients — goal pull overlaid on energy gradients for intentional routing
@@ -843,7 +849,7 @@ These gates are asserted in `tests/phase54_energy_action.rs` and run in CI.
 ✅ Goal stability metrics — alignment, efficiency, projected stability, and intent confidence
 - Multi-goal arbitration across competing preference fields
 
-### Phase 5.5 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.5 Acceptance Gates (Status: Validated in CI)
 - Gate AJ: Intent field forms at least one goal attractor in stable topology
 - Gate AK: Preference gradients apply positive goal pull toward preferred regions
 - Gate AL: Goal-directed trajectory moves toward preferred/non-avoided regions
@@ -852,7 +858,7 @@ These gates are asserted in `tests/phase54_energy_action.rs` and run in CI.
 
 These gates are asserted in `tests/phase55_intent_goal.rs` and run in CI.
 
-### Phase 5.6: Multi-Goal Arbitration & Internal Conflict Resolution (In Progress)
+### Phase 5.6: Multi-Goal Arbitration & Internal Conflict Resolution (Status: Validated in CI)
 ✅ GoalSet — structured set of simultaneous goals merged from multiple intent fields
 ✅ GoalPriorityWeights — relative importance weights per goal region
 ✅ ConflictGradient — coherence/interference analysis per region across competing goals
@@ -860,7 +866,7 @@ These gates are asserted in `tests/phase55_intent_goal.rs` and run in CI.
 ✅ ConflictResolvedTrajectory — chosen path that respects goal hierarchy and minimizes conflict cost
 - Multi-level goal hierarchies and meta-intent structures
 
-### Phase 5.6 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.6 Acceptance Gates (Status: Validated in CI)
 - Gate AO: GoalSet merges multiple intent fields and accumulates goal weights
 - Gate AP: ConflictGradients detect goal interference across competing attractors
 - Gate AQ: Arbitration produces a single dominant goal region from the goal hierarchy
@@ -869,7 +875,7 @@ These gates are asserted in `tests/phase55_intent_goal.rs` and run in CI.
 
 These gates are asserted in `tests/phase56_multi_goal.rs` and run in CI.
 
-### Phase 5.7: Self-Consistent Cognitive Dynamics (Meta-Intent) (In Progress)
+### Phase 5.7: Self-Consistent Cognitive Dynamics - Meta-Intent (Status: Validated in CI)
 ✅ GoalHierarchy — layered goal structure with deterministic parent links
 ✅ MetaIntentField — intent-about-intent synthesis over arbitrated goal fields
 ✅ MetaPreferenceGradient — cross-goal modulation (influence, coherence delta, conflict delta)
@@ -877,7 +883,7 @@ These gates are asserted in `tests/phase56_multi_goal.rs` and run in CI.
 ✅ MetaIntentTrajectory — recursive trajectory selection with goal revision under coherence pressure
 - Self-model formation from long-horizon meta-intent history
 
-### Phase 5.7 Acceptance Gates (Enforced in Tests/CI)
+### Phase 5.7 Acceptance Gates (Status: Validated in CI)
 - Gate AT: MetaIntentField forms hierarchy and coherence metrics from arbitrated goals
 - Gate AU: MetaPreferenceGradients capture inter-goal modulation effects
 - Gate AV: Self-coherence decreases under external perturbation pressure
@@ -886,12 +892,12 @@ These gates are asserted in `tests/phase56_multi_goal.rs` and run in CI.
 
 These gates are asserted in `tests/phase57_meta_intent.rs` and run in CI.
 
-### Phase 6: Self-Directed Cognitive Dynamics (Planned)
+### Phase 6: Self-Directed Cognitive Dynamics (Status: Planned)
 - Intentional self-modeling and persistent identity priors
 - Autonomous goal revision loops with bounded contradiction budgets
 - Long-horizon self-directed learning under deterministic replay
 
-### Phase 6.2: Anchor-Closure Spine V1 (Validated, Still Flag-Gated)
+### Phase 6.2: Anchor-Closure Spine V1 (Status: Validated in CI, Still Flag-Gated)
 ✅ Recovery-only bridge from anchor to region, one-shot, replay-stable across the hard-holdout battery (learning_curve_iterations 13 → 1 on canonical holdout)
 ✅ Phase 6.2 gates enforced in `tests/phase62_structural.rs`: canonical hardest-case replay → multi-holdout replay stability → promotion-bar memory consistency (ignored, declared future bar)
 ✅ Extended CI validation: two additional full passes, identical per-holdout tuples and toggle logs, no regressions
@@ -905,7 +911,7 @@ These gates are asserted in `tests/phase57_meta_intent.rs` and run in CI.
 
 The distinguishing signal in weak holdouts (02, 04): recovery reduces neither external noise nor self-continuity deficit. The closure spine is necessary but not sufficient.
 
-### Phase 6.2 V2: Region-Cohesion and External-Dampening Reinforcement (In Progress)
+### Phase 6.2 V2: Region-Cohesion and External-Dampening Reinforcement (Status: Operational but Evolving)
 Target: structural reinforcement for holdouts with memory_score < 5, specifically holdout_02 and holdout_04
 Basis: per-holdout recovery deltas extracted from Phase 6.2 V1 multi-holdout battery
 
@@ -933,7 +939,7 @@ Measured V2a effect (region cohesion + external dampening, full hard-holdout bat
 
 Interpretation: V2a is a true structural improvement and the current promoted Phase 6.2 V2 path (still flag-gated). It repairs continuity for holdout_02 and holdout_05 and dampens external change for holdout_04, while preserving replay determinism and speed budget.
 
-### Phase 6.2 V2b: Plateau Continuity Lift (Manifold Drift Suppression) (Experimental, Pattern-Specific)
+### Phase 6.2 V2b: Plateau Continuity Lift - Manifold Drift Suppression (Status: Operational but Evolving, Experimental)
 Target: narrow plateau-pattern intervention for holdout_04-style failures; not a general battery uplift
 Status: replay-stable, not eligible for promotion due to holdout_02 regression risk
 
@@ -949,7 +955,7 @@ Measured V2b effect (hard-exclusion branch + full hard-holdout battery, two repl
 
 Interpretation: V2b is currently a holdout_04-pattern research probe, not a battery-level structural layer. It should remain experimental and flag-gated until selector criteria prevent holdout_02-style contradictory continuity regressions. The next V2b refinement should use explicit numeric plateau signatures (for example, continuity_delta == 0 and external_change_delta >= 0) rather than broader predicate-only matching.
 
-### Phase 6.2 V3: Contradiction-Relief and Continuity-Rebinding (Experimental, 02-Class Probe)
+### Phase 6.2 V3: Contradiction-Relief and Continuity-Rebinding (Status: Operational but Evolving, Experimental)
 Target: contradiction-dominated recovery, especially holdout_02-style failures with high support-demand pressure
 Status: implemented as a separate experiment kind (`GORT_PHASE62_KIND=contradiction`), replay-stable, not yet effective on the primary target class
 
@@ -965,7 +971,7 @@ Measured V3 effect (first contradiction-relief probe, full hard-holdout battery,
 
 Interpretation: V3 confirms that contradiction-dominated recovery needs a genuinely different structural layer, but this first probe does not yet solve the intended 02-class failure. The current contradiction-relief + continuity-rebinding injection is replay-stable and non-destructive on strong cases, but its measurable effect lands on holdout_05 rather than holdout_02. Next V3 work should move beyond novelty-family gating and incorporate deeper runtime/closure-regime signals so contradiction pressure is relieved where continuity is actually collapsing.
 
-### Phase 6.2 V3b: Closure-Regime-First Contradiction Branching (Experimental)
+### Phase 6.2 V3b: Closure-Regime-First Contradiction Branching (Status: Operational but Evolving, Experimental)
 Target: split contradiction recovery into closure-ready (05-class) vs closure-deficit (02-class) branches using runtime summary signals from the first trained recovery pre-pass
 Status: implemented as a separate experiment kind (`GORT_PHASE62_KIND=v3b`), replay-stable, structurally cleaner than novelty-family gating, not yet promoted
 
@@ -980,7 +986,7 @@ Measured V3b effect (closure-regime branch, full hard-holdout battery, two repla
 
 Interpretation: V3b successfully introduces the right architectural split (runtime-summary-driven closure regime instead of novelty-family-only gating) and preserves determinism, but this first closure-aware branch still needs threshold/selector tuning to consistently outperform V3 on aggregate memory score. The design direction is now correct; the remaining work is numeric calibration of branch criteria and closure-deficit subject ranking so 02-class gains become dominant rather than incidental.
 
-### Phase 6.2 Status Snapshot (Frozen)
+### Phase 6.2 Status Snapshot (Status: Frozen)
 
 Current Phase 6.2 status is intentionally frozen to preserve reproducible baselines for the next structural step.
 
@@ -997,7 +1003,7 @@ What this freeze means:
 - V3 remains current best aggregate contradiction regime in this snapshot.
 - Next meaningful progress should be a new structural layer (V4-style), designed from telemetry, rather than additional predicate-only micro-tuning.
 
-### Phase 6.2 V4 Design Brief (Draft)
+### Phase 6.2 V4 Design Brief (Status: Planned)
 
 Objective: deliver a structural V4 layer that specifically repairs 02-class closure-deficit behavior while preserving deterministic replay, one-iteration recovery speed, and battery-level memory safety.
 
@@ -1119,7 +1125,7 @@ Gate-to-evidence mapping (protocol quick-reference):
 | V4-D | `diff -u /tmp/gort_v4_tuples1.txt /tmp/gort_v4_tuples2.txt` after tuple extraction grep | Replay tuple identity across consecutive full runs |
 | V4-E | `=== V4-E (speed budget) ===` grep tail for `learning_curve_iterations` and `recovery_converged_iteration` | Convergence-speed budget and cross-regime consistency |
 
-### Phase 6.3 Direction: New Structural Mechanism (Not Another Probe)
+### Phase 6.3 Direction: New Structural Mechanism (Status: Planned)
 
 The next phase should add a new capability layer, not another selector/probe variant. Three viable structural directions are defined:
 
@@ -1148,7 +1154,7 @@ Promotion posture:
 
 - Any selected direction must be evaluated through the existing V4-A..V4-E protocol and must beat or match the promoted baseline without replay or speed regressions.
 
-### Phase 6.3 Minimal Implementation Spec (Topology-Guided Contradiction Repair)
+### Phase 6.3 Minimal Implementation Spec (Status: Planned)
 
 Scope: implement the smallest structural layer that adds topology-guided contradiction repair with replay-stable telemetry and no runtime-model breakage.
 
@@ -1301,7 +1307,7 @@ Definition of done for this minimal spec:
 - Replay tuple identity test passes.
 - V4-A..V4-E command protocol can evaluate phase63 outputs without script changes.
 
-### Phase 6.4: Operator Expansion
+### Phase 6.4: Operator Expansion (Status: Planned)
 
 Fresh Phase63 sweep note, focused on holdout_02 and holdout_04:
 
@@ -1332,7 +1338,7 @@ Gate wording for Phase 6.4:
 - Gate B: No destructive regression on strong cases (01/05 continuity/external stay non-negative).
 - Gate C: Operator choice is replay-stable and matches the learned success bands.
 
-### Phase 6.6 Direction (Next Axis): Continuity Re-Basing and Memory-Window Reshaping
+### Phase 6.6 Direction - Next Axis: Continuity Re-Basing and Memory-Window Reshaping (Status: Planned)
 
 Objective: move beyond additional operator-layer tuning and change the continuity mechanism itself for 02/04-class failures.
 
@@ -1360,7 +1366,7 @@ Phase 6.6 continuity-rebase constants (frozen v1):
     - Applied only in Phase 6.6 telemetry (`GORT_PHASE62_KIND=phase66`) during this stage.
     - No constraint mutation or behavioral routing change is introduced by this formula pass.
 
-### Phase 6.7: Semantic Escalation Context (Telemetry-First, Complete)
+### Phase 6.7: Semantic Escalation Context (Status: Operational but Evolving)
 ✅ `phase67_escalation_marker_in` derived from Phase66 escalation handoff
 ✅ `phase67_semantic_context` derived deterministically from Phase66 `problematic` and `effectiveness` signals
 ✅ Context mapping: `continuity_insensitive` when `problematic && effectiveness >= 0`; `none` otherwise
@@ -1371,7 +1377,7 @@ Phase 6.7 is the **first time GORT has a semantic reason code for escalation** �
 
 ---
 
-### Phase 7.x: Higher-Order Geometric Cognition (Design Brief — Next Milestone)
+### Phase 7.x: Higher-Order Geometric Cognition (Status: Planned)
 
 **Purpose:** Phase 7.x introduces the first true cognitive behavior in GORT — structural self-modification driven by relevance, prioritization, and context, all grounded in geometric invariants.
 
@@ -1431,12 +1437,12 @@ This is the moment GORT becomes a **self-correcting geometric cognition engine**
 
 ---
 
-### Phase 8.x: Choice-Driven Structural Adaptation (Planned)
+### Phase 8.x: Choice-Driven Structural Adaptation (Status: Planned)
 - Multi-frame reasoning frames as geometric coordinate systems
 - Heuristics derived from geometric invariants, not ad-hoc rules
 - Long-horizon adaptive choice grounded in accumulated geometric context
 
-### Phase 9.x: Structure-Driven Cognitive Improvement (Planned)
+### Phase 9.x: Structure-Driven Cognitive Improvement (Status: Planned)
 - Emergent cognition from geometric resonance, not statistical approximation
 - Self-model formation from long-horizon geometric trace
 - Cognitive improvement as geometric convergence
