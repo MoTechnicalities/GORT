@@ -1,6 +1,6 @@
 # GORT: Geometric Operator-Regulated Thought
 
-![GORT Hero Image](./GORT-hero.png)
+![GORT Hero Image](./GORT-hero2.png)
 
 **The first deterministic geometric reasoning engine.**
 
@@ -284,6 +284,177 @@ cargo run --example phase57_meta_intent
 
 ```bash
 cargo test
+```
+
+### CI Gauntlet Snippets
+
+Default JSON schema pointer emitted by the gauntlet:
+
+`docs/schemas/phase80-gauntlet-summary-v1.schema.json`
+
+Schema version negotiation via one env var:
+
+`GORT_GAUNTLET_JSON_SCHEMA_VERSION=v1` (default)
+
+`GORT_GAUNTLET_JSON_SCHEMA_VERSION=v1-experimental`
+
+Future versions resolve to:
+
+`docs/schemas/phase80-gauntlet-summary-<version>.schema.json`
+
+Schema governance manifest (supported versions + stability levels):
+
+`docs/schemas/phase80-gauntlet-schema-manifest.json`
+
+The summary JSON also emits governance-level resolution fields:
+
+- `effective_schema_uri`: resolved schema URI/path after negotiation or override
+- `effective_schema_source`: one of `version`, `override`, `version-fallback`
+
+Schema manifest governance:
+
+- `manifest_signature`: SHA256 hash of the manifest file, for detecting manifest drift
+
+Schema-versioned regression detection:
+
+The gauntlet can detect convergence regressions by comparing the current summary against a baseline using schema-aware diffing. This catches when checks that previously passed start failing, indicating a regression.
+
+- Enable regression detection: `GORT_GAUNTLET_REGRESSION_BASELINE_DIR=path/to/baselines`
+- Baseline storage: Latest passing summary stored at `$BASELINE_DIR/baseline-latest.json`
+- Regression verdict: Added as `schema_regression_detection` row in summary table
+- Regression delta: `regression_delta` field in JSON with:
+  - `regression_detected`: boolean flag
+  - `regression_messages`: list of specific changes (e.g., "overall: PASS → FAIL")
+  - `regression_fields`: which fields changed (checks, overall, deep_time)
+  - `baseline_schema_version` / `current_schema_version`: version compatibility info
+
+Example: Enable regression detection for CI pipeline:
+
+```bash
+set -euo pipefail
+mkdir -p ci-baselines
+GORT_GAUNTLET_REGRESSION_BASELINE_DIR=ci-baselines ./scripts/phase80_gauntlet.sh
+```
+
+First run initializes baseline; subsequent runs compare against it. If the current run is worse than the baseline (PASS→FAIL transition), gauntlet exits 1 with regression details in JSON.
+
+If a selected schema version is marked deprecated in the manifest, the gauntlet emits
+`[gauntlet][warning] ...` and adds a `schema_deprecation_warning` row in the summary table.
+
+You can still hard-override with `GORT_GAUNTLET_JSON_SCHEMA_URI` if CI needs a custom schema URI.
+
+#### Schema Evolution Governance
+
+New schema versions must maintain backward compatibility or explicitly declare breaking changes. This ensures that schema evolution doesn't silently break CI pipelines or regression detection.
+
+Breaking change declaration via `docs/schemas/phase80-gauntlet-schema-manifest.json`:
+
+```json
+{
+    "supported_versions": {
+        "v1": {
+            "breaking_changes": [],
+            "compatible_with": [],
+            "requires_explicit_migration": false
+        },
+        "v2": {
+            "breaking_changes": ["new_required_field added"],
+            "compatible_with": [],
+            "requires_explicit_migration": true
+        }
+    }
+}
+```
+
+**Invariant Rules:**
+
+1. **Backward Compatible**: If v2 is backward compatible with v1, do NOT declare breaking changes
+2. **Breaking Changes**: If v2 breaks v1 compatibility, you MUST:
+     - Populate `breaking_changes[]` with specific changes (e.g., "new_required_field added", "old_field removed")
+     - Set `requires_explicit_migration = true`
+3. **Version Lineage**: `compatible_with[]` lists which earlier versions can read v2 documents (typically empty for breaking versions)
+
+**Breaking Change Types Detected:**
+
+- New required fields added (v1 documents would fail validation)
+- Old required fields removed or demoted (v2 rejects older valid documents)
+- Old properties removed (v1 references become undefined)
+- Type constraints tightened (e.g., string → integer enum narrows valid values)
+
+Enable evolution invariant validation:
+
+```bash
+set -euo pipefail
+GORT_GAUNTLET_SCHEMA_EVOLUTION_CHECK=1 ./scripts/phase80_gauntlet.sh
+```
+
+Validation result added as `schema_evolution_invariants` row in summary table:
+- `PASS`: All versions satisfy invariant rules (breaking changes properly declared or not needed)
+- `FAIL`: Invariant violations detected (undeclared breaking change, missing migration flag, etc.)
+- `SKIP`: Schema manifest missing or malformed
+
+Example CI workflow with all governance layers enabled:
+
+```bash
+set -euo pipefail
+mkdir -p ci-baselines
+GORT_GAUNTLET_SCHEMA_EVOLUTION_CHECK=1 \
+GORT_GAUNTLET_REGRESSION_BASELINE_DIR=ci-baselines \
+./scripts/phase80_gauntlet.sh | tee artifacts/phase80_gauntlet.log
+status=${PIPESTATUS[0]}
+test -s artifacts/phase80_gauntlet_summary.json && exit "$status"
+```
+
+Normal gauntlet mode:
+
+```bash
+set -euo pipefail
+./scripts/phase80_gauntlet.sh
+```
+
+JSON self-test mode (expected to fail validation and return non-zero):
+
+```bash
+set -euo pipefail
+if GORT_GAUNTLET_JSON_SELFTEST=1 ./scripts/phase80_gauntlet.sh; then
+    echo "error: JSON self-test unexpectedly passed" >&2
+    exit 1
+fi
+```
+
+Strict pipeline-safe invocation pattern (preserves gauntlet exit code with tee):
+
+```bash
+set -euo pipefail
+./scripts/phase80_gauntlet.sh | tee /tmp/gort_phase80_gauntlet_ci.log
+status=${PIPESTATUS[0]}
+exit "$status"
+```
+
+Custom JSON summary path for CI artifact upload:
+
+```bash
+set -euo pipefail
+mkdir -p artifacts
+GORT_GAUNTLET_JSON_SUMMARY_PATH=artifacts/phase80_gauntlet_summary.json \
+./scripts/phase80_gauntlet.sh | tee artifacts/phase80_gauntlet.log
+status=${PIPESTATUS[0]}
+test -s artifacts/phase80_gauntlet_summary.json
+exit "$status"
+```
+
+Regression detection (detect convergence regressions vs. baseline):
+
+```bash
+set -euo pipefail
+mkdir -p ci-baselines artifacts
+GORT_GAUNTLET_REGRESSION_BASELINE_DIR=ci-baselines \
+GORT_GAUNTLET_JSON_SUMMARY_PATH=artifacts/phase80_gauntlet_summary.json \
+./scripts/phase80_gauntlet.sh | tee artifacts/phase80_gauntlet.log
+status=${PIPESTATUS[0]}
+# Check regression_delta in JSON for details
+python3 -c "import json; d=json.load(open('artifacts/phase80_gauntlet_summary.json')); print('Regression:', d.get('regression_delta', {}).get('regression_detected', False))"
+exit "$status"
 ```
 
 ### Speed Demonstration
