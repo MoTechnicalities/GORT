@@ -26,6 +26,10 @@ use gort::{
     phase14_build_clifford_family, phase14_build_commutation_table, phase14_build_pauli_family,
     phase14_compute_commutator, phase14_emit_algebra_telemetry, phase14_emit_family_telemetry,
     phase14_validate_family_invariants, phase14_validate_table_invariants,
+    Phase15BindingKind, Phase15TwoQubitOp,
+    phase15_apply_two_qubit_op, phase15_apply_two_qubit_sequence,
+    phase15_build_two_qubit_state, phase15_emit_binding_telemetry,
+    phase15_validate_two_qubit_invariants,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -3194,4 +3198,116 @@ fn gauntlet_phase14_clifford_family_gate_is_well_formed() {
         .collect();
     assert!(!h_pairs.is_empty());
     assert!(h_pairs.iter().all(|p| p.commutator.commutator_signature == "irrational_pair_sentinel"));
+}
+
+// ── Phase 15 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase15_two_qubit_state_invariants_are_enforced() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("|1>");
+
+    let corr = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("corr");
+    phase15_validate_two_qubit_invariants(&corr).expect("corr invariants");
+    assert_eq!(corr.binding_kind, Phase15BindingKind::Correlated);
+
+    let anti = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("anti");
+    assert_eq!(anti.binding_kind, Phase15BindingKind::AntiCorrelated);
+
+    let telemetry = phase15_emit_binding_telemetry(&corr);
+    assert!(telemetry.contains("well_formed=true"));
+    assert!(telemetry.contains("Correlated"));
+}
+
+#[test]
+fn gauntlet_phase15_binding_classification_gate_is_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("|1>");
+    let qx = phase13_build_qubit_state(1, 0, 0).expect("|+x>");
+
+    // Same axis → correlated.
+    let a = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("a");
+    let b = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("b");
+    assert_eq!(a, b);
+
+    // Opposite axis → anti-correlated.
+    assert_eq!(
+        phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("anti").binding_kind,
+        Phase15BindingKind::AntiCorrelated,
+    );
+
+    // x-axis qubit gives z=0 product → separable.
+    assert_eq!(
+        phase15_build_two_qubit_state(q0.clone(), qx.clone()).expect("sep").binding_kind,
+        Phase15BindingKind::Separable,
+    );
+
+    // Entangling op overrides classification.
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+    let after_cx = phase15_apply_two_qubit_op(&initial, Phase15TwoQubitOp::ControlledX)
+        .expect("cx");
+    assert_eq!(after_cx.binding_kind, Phase15BindingKind::EntanglingOpApplied);
+}
+
+#[test]
+fn gauntlet_phase15_entangling_op_replay_gate_is_byte_stable() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+
+    let ops = [
+        Phase15TwoQubitOp::ControlledX,  // entangle: q2 flips to |1>
+        Phase15TwoQubitOp::Swap,          // swap q1 and q2
+        Phase15TwoQubitOp::ControlledZ,   // entangle: CZ on new q2
+    ];
+
+    let baseline = phase15_apply_two_qubit_sequence(&initial, &ops).expect("baseline");
+    phase15_validate_two_qubit_invariants(&baseline.final_state)
+        .expect("baseline final state invariants");
+    let baseline_telemetry = phase15_emit_binding_telemetry(&baseline.final_state);
+
+    const PHASE15_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE15_REPLAY_LOOPS {
+        let current = phase15_apply_two_qubit_sequence(&initial, &ops).expect("current");
+        assert_eq!(current, baseline);
+        assert_eq!(
+            phase15_emit_binding_telemetry(&current.final_state),
+            baseline_telemetry,
+        );
+    }
+
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        baseline_telemetry.hash(&mut h);
+        let digest = format!("{:016x}", h.finish());
+
+        println!(
+            "PHASE15_SUMMARY:verdict={}|binding_signature={}|sequence_signature={}|telemetry_digest={}|replay_loops={}",
+            baseline.final_state.state_well_formed,
+            baseline.final_state.binding_signature,
+            baseline.sequence_signature,
+            digest,
+            PHASE15_REPLAY_LOOPS,
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase15_swap_is_involutory_and_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("|1>");
+    let state = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("state");
+
+    let once = phase15_apply_two_qubit_op(&state, Phase15TwoQubitOp::Swap).expect("swap1");
+    let twice = phase15_apply_two_qubit_op(&once, Phase15TwoQubitOp::Swap).expect("swap2");
+
+    // SWAP ∘ SWAP ≠ identity in GORT because op_history_signature differs,
+    // but the qubit positions must be restored.
+    assert_eq!(twice.q1, state.q1);
+    assert_eq!(twice.q2, state.q2);
+
+    // Determinism: two independent SWAP calls produce identical results.
+    let once_again = phase15_apply_two_qubit_op(&state, Phase15TwoQubitOp::Swap).expect("replay");
+    assert_eq!(once, once_again);
 }

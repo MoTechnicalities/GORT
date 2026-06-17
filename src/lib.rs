@@ -55,6 +55,7 @@ pub mod cognition {
     pub mod phase12_emergent_cognitive_programs;
     pub mod phase13_qubit_kernel;
     pub mod phase14_operator_algebra;
+    pub mod phase15_two_qubit_semantic_binding;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -195,6 +196,18 @@ pub mod cognition {
         phase14_emit_family_telemetry,
         phase14_validate_family_invariants,
         phase14_validate_table_invariants,
+    };
+    pub use phase15_two_qubit_semantic_binding::{
+        Phase15BindingKind,
+        Phase15TwoQubitOp,
+        Phase15TwoQubitSequenceResult,
+        Phase15TwoQubitState,
+        phase15_apply_two_qubit_op,
+        phase15_apply_two_qubit_sequence,
+        phase15_build_two_qubit_state,
+        phase15_emit_binding_telemetry,
+        phase15_emit_op_telemetry,
+        phase15_validate_two_qubit_invariants,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -395,6 +408,16 @@ pub use cognition::{
     phase14_emit_family_telemetry,
     phase14_validate_family_invariants,
     phase14_validate_table_invariants,
+    Phase15BindingKind,
+    Phase15TwoQubitOp,
+    Phase15TwoQubitSequenceResult,
+    Phase15TwoQubitState,
+    phase15_apply_two_qubit_op,
+    phase15_apply_two_qubit_sequence,
+    phase15_build_two_qubit_state,
+    phase15_emit_binding_telemetry,
+    phase15_emit_op_telemetry,
+    phase15_validate_two_qubit_invariants,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

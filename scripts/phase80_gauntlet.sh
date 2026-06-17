@@ -113,6 +113,10 @@ labels=(
   "phase14_commutator_gate"
   "phase14_commutation_table_replay_gate"
   "phase14_clifford_family_gate"
+  "phase15_two_qubit_state_invariants"
+  "phase15_binding_classification_gate"
+  "phase15_entangling_op_replay_gate"
+  "phase15_swap_involutory_gate"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -139,6 +143,10 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_commutator_non_commutation_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_commutation_table_replay_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_clifford_family_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_two_qubit_state_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_binding_classification_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_entangling_op_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_swap_involutory_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -171,6 +179,8 @@ phase13_top_level_label="phase13_top_level_summary"
 phase13_top_level_result="FAIL"
 phase14_top_level_label="phase14_top_level_summary"
 phase14_top_level_result="FAIL"
+phase15_top_level_label="phase15_top_level_summary"
+phase15_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -480,6 +490,73 @@ if [[ "$phase14_family_result" == "PASS" ]] \
   phase14_top_level_result="PASS"
 fi
 
+# Extract Phase 15 telemetry from test log
+phase15_verdict="unknown"
+phase15_binding_signature="unknown"
+phase15_sequence_signature="unknown"
+phase15_telemetry_digest="unknown"
+phase15_replay_loops="0"
+_p15_log="$OUT_DIR/phase15_entangling_op_replay_gate.log"
+if [[ -f "$_p15_log" ]]; then
+  _p15_line="$(grep -o 'PHASE15_SUMMARY:[^ ]*' "$_p15_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p15_line" ]]; then
+    _p15_data="${_p15_line#PHASE15_SUMMARY:}"
+    phase15_verdict="$(printf '%s' "$_p15_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase15_binding_signature="$(printf '%s' "$_p15_data" | grep -o 'binding_signature=[^|]*' | cut -d= -f2)"
+    phase15_sequence_signature="$(printf '%s' "$_p15_data" | grep -o 'sequence_signature=[^|]*' | cut -d= -f2)"
+    phase15_telemetry_digest="$(printf '%s' "$_p15_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase15_replay_loops="$(printf '%s' "$_p15_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase15_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase15_replay_loops="0"
+fi
+
+phase15_state_idx=-1
+phase15_classify_idx=-1
+phase15_replay_idx=-1
+phase15_swap_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase15_two_qubit_state_invariants" ]]; then
+    phase15_state_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase15_binding_classification_gate" ]]; then
+    phase15_classify_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase15_entangling_op_replay_gate" ]]; then
+    phase15_replay_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase15_swap_involutory_gate" ]]; then
+    phase15_swap_idx="$i"
+  fi
+done
+
+phase15_state_result="FAIL"
+phase15_classify_result="FAIL"
+phase15_replay_result="FAIL"
+phase15_swap_result="FAIL"
+if [[ "$phase15_state_idx" -ge 0 ]]; then
+  phase15_state_result="${results[$phase15_state_idx]}"
+fi
+if [[ "$phase15_classify_idx" -ge 0 ]]; then
+  phase15_classify_result="${results[$phase15_classify_idx]}"
+fi
+if [[ "$phase15_replay_idx" -ge 0 ]]; then
+  phase15_replay_result="${results[$phase15_replay_idx]}"
+fi
+if [[ "$phase15_swap_idx" -ge 0 ]]; then
+  phase15_swap_result="${results[$phase15_swap_idx]}"
+fi
+
+if [[ "$phase15_state_result" == "PASS" ]] \
+  && [[ "$phase15_classify_result" == "PASS" ]] \
+  && [[ "$phase15_replay_result" == "PASS" ]] \
+  && [[ "$phase15_swap_result" == "PASS" ]] \
+  && [[ "$phase15_verdict" == "true" ]]; then
+  phase15_top_level_result="PASS"
+fi
+
 # Generate JSON summary first so regression detection can work
 {
   echo "{";
@@ -646,6 +723,33 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
+# Patch phase15 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase15_verdict" "$phase15_binding_signature" "$phase15_sequence_signature" "$phase15_telemetry_digest" "$phase15_replay_loops" <<'PHASE15_PATCH_PY'
+import json, sys
+
+json_path, verdict, binding_sig, seq_sig, tel_digest, replay_loops = sys.argv[1:7]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase15'] = {
+        "phase15_verdict": verdict,
+        "phase15_binding_signature": binding_sig,
+        "phase15_sequence_signature": seq_sig,
+        "phase15_telemetry_digest": tel_digest,
+        "phase15_replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase15: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE15_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase15 JSON patch failed" >&2
+  exit 1
+fi
+
 # Schema-versioned regression detection (now with JSON available)
 if [[ "$REGRESSION_ENABLED" == "1" ]]; then
   if [[ -f "$REGRESSION_BASELINE_PATH" ]]; then
@@ -733,6 +837,7 @@ fi
 printf "%-32s | %s\n" "$phase12_top_level_label" "$phase12_top_level_result"
 printf "%-32s | %s\n" "$phase13_top_level_label" "$phase13_top_level_result"
 printf "%-32s | %s\n" "$phase14_top_level_label" "$phase14_top_level_result"
+printf "%-32s | %s\n" "$phase15_top_level_label" "$phase15_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi
