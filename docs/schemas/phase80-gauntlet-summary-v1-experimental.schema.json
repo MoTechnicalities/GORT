@@ -158,6 +158,39 @@
         }
       }
     },
+    "phase13": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase13_verdict",
+        "phase13_state_signature",
+        "phase13_evolution_signature",
+        "phase13_measurement_signature",
+        "phase13_replay_loops"
+      ],
+      "properties": {
+        "phase13_verdict": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase13_state_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase13_evolution_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase13_measurement_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase13_replay_loops": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "regression_delta": {
       "type": "object",
       "additionalProperties": false,

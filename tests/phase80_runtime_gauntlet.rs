@@ -17,6 +17,11 @@ use gort::{
     phase90_build_geometry_driven_adjustment_plan, phase90_emit_geometry_operator_telemetry,
     Phase90GeometryDrivenAdjustmentOperator, Phase90GeometryDrivenAdjustmentPlan,
     phase12_emit_program_telemetry, phase12_synthesize_emergent_cognitive_program,
+    Phase13QubitUnaryOp,
+    phase13_apply_unitary_sequence, phase13_build_qubit_state,
+    phase13_emit_measurement_telemetry, phase13_emit_state_telemetry,
+    phase13_measure_z, phase13_ops_commute, phase13_unitary_signature,
+    phase13_validate_qubit_state_invariants, phase13_validate_unitary_invariants,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -2974,5 +2979,106 @@ fn gauntlet_phase12_emergent_programs_gate_is_replay_stable() {
             telemetry_digest,
             PHASE12_REPLAY_LOOPS,
         );
+    }
+}
+
+#[test]
+fn gauntlet_phase13_qubit_state_invariants_are_enforced() {
+    let stable = phase13_build_qubit_state(0, 0, 1).expect("state");
+    phase13_validate_qubit_state_invariants(&stable).expect("valid state invariants");
+
+    let telemetry = phase13_emit_state_telemetry(&stable);
+    assert!(telemetry.contains("norm_error=0"));
+    assert!(telemetry.contains("well_formed=true"));
+
+    let err = phase13_build_qubit_state(1, 1, 0).expect_err("non-unit Bloch vector must fail");
+    assert_eq!(err, "phase13_invalid_state_norm: expected 1, observed 2");
+}
+
+#[test]
+fn gauntlet_phase13_unitary_invariants_are_enforced() {
+    let ops = [
+        Phase13QubitUnaryOp::PauliX,
+        Phase13QubitUnaryOp::PauliZ,
+        Phase13QubitUnaryOp::FixedHadamard,
+    ];
+
+    for op in ops {
+        phase13_validate_unitary_invariants(op).expect("unitary invariants");
+        assert!(!phase13_unitary_signature(op).is_empty());
+    }
+
+    let commute = phase13_ops_commute(Phase13QubitUnaryOp::PauliX, Phase13QubitUnaryOp::PauliZ)
+        .expect("x/z composition should be computable");
+    assert!(!commute, "expected PauliX and PauliZ to be non-commuting");
+}
+
+#[test]
+fn gauntlet_phase13_evolution_replay_gate_is_byte_stable() {
+    let baseline_initial = phase13_build_qubit_state(0, 0, 1).expect("initial state");
+    let op_plan = [
+        Phase13QubitUnaryOp::FixedHadamard,
+        Phase13QubitUnaryOp::PauliZ,
+        Phase13QubitUnaryOp::PauliX,
+        Phase13QubitUnaryOp::FixedHadamard,
+    ];
+
+    let baseline_sequence = phase13_apply_unitary_sequence(&baseline_initial, &op_plan)
+        .expect("baseline evolution");
+    let baseline_final = baseline_sequence.final_state.clone();
+    phase13_validate_qubit_state_invariants(&baseline_final).expect("post-state invariants");
+    let baseline_state_telemetry = phase13_emit_state_telemetry(&baseline_final);
+    let baseline_measurement = phase13_measure_z(&baseline_final).expect("baseline measurement");
+    let baseline_measurement_telemetry = phase13_emit_measurement_telemetry(&baseline_measurement);
+
+    const PHASE13_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE13_REPLAY_LOOPS {
+        let current_sequence = phase13_apply_unitary_sequence(&baseline_initial, &op_plan)
+            .expect("current evolution");
+        let current_final = current_sequence.final_state;
+        let current_state_telemetry = phase13_emit_state_telemetry(&current_final);
+        let current_measurement = phase13_measure_z(&current_final).expect("current measurement");
+        let current_measurement_telemetry = phase13_emit_measurement_telemetry(&current_measurement);
+
+        assert_eq!(current_final, baseline_final);
+        assert_eq!(current_sequence.op_sequence_signature, baseline_sequence.op_sequence_signature);
+        assert_eq!(current_sequence.evolution_signature, baseline_sequence.evolution_signature);
+        assert_eq!(current_state_telemetry, baseline_state_telemetry);
+        assert_eq!(current_measurement, baseline_measurement);
+        assert_eq!(current_measurement_telemetry, baseline_measurement_telemetry);
+    }
+
+    {
+        println!(
+            "PHASE13_SUMMARY:verdict={}|state_signature={}|evolution_signature={}|measurement_signature={}|replay_loops={}",
+            baseline_final.state_well_formed,
+            baseline_final.state_signature,
+            baseline_sequence.evolution_signature,
+            baseline_measurement.measurement_signature,
+            PHASE13_REPLAY_LOOPS,
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase13_measurement_contract_gate_is_fixture_deterministic() {
+    let fixtures = [
+        (phase13_build_qubit_state(0, 0, 1).expect("|0>"), 0u8),
+        (phase13_build_qubit_state(0, 0, -1).expect("|1>"), 1u8),
+        (phase13_build_qubit_state(1, 0, 0).expect("|+x>"), 0u8),
+        (phase13_build_qubit_state(-1, 0, 0).expect("|-x>"), 1u8),
+    ];
+
+    for (state, expected_bit) in fixtures {
+        let a = phase13_measure_z(&state).expect("measurement a");
+        let b = phase13_measure_z(&state).expect("measurement b");
+
+        assert_eq!(a, b);
+        assert_eq!(a.bit, expected_bit);
+        if expected_bit == 0 {
+            assert_eq!(a.post_state, phase13_build_qubit_state(0, 0, 1).expect("|0>"));
+        } else {
+            assert_eq!(a.post_state, phase13_build_qubit_state(0, 0, -1).expect("|1>"));
+        }
     }
 }

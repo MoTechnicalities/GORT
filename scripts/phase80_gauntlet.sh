@@ -105,6 +105,10 @@ labels=(
   "phase11_multi_loop_convergence"
   "phase12_manifest_invariants"
   "phase12_emergent_programs_gate"
+  "phase13_qubit_state_invariants"
+  "phase13_unitary_invariants"
+  "phase13_evolution_replay_gate"
+  "phase13_measurement_contract_gate"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -123,6 +127,10 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase11_ -- --nocapture"
   "python3 \"$ROOT_DIR/scripts/validate-phase12-invariants.py\" \"$ROOT_DIR/$JSON_SCHEMA_MANIFEST_PATH\""
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase12_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_qubit_state_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_unitary_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_evolution_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_measurement_contract_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -151,6 +159,8 @@ phase12_drift_window_label="phase12_drift_window"
 phase12_drift_window_result=""
 phase12_top_level_label="phase12_top_level_summary"
 phase12_top_level_result="FAIL"
+phase13_top_level_label="phase13_top_level_summary"
+phase13_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -326,6 +336,73 @@ if [[ "$phase12_gate_result" == "PASS" ]] \
   phase12_top_level_result="PASS"
 fi
 
+# Extract Phase 13 telemetry from test log
+phase13_verdict="unknown"
+phase13_state_signature="unknown"
+phase13_evolution_signature="unknown"
+phase13_measurement_signature="unknown"
+phase13_replay_loops="0"
+_p13_log="$OUT_DIR/phase13_evolution_replay_gate.log"
+if [[ -f "$_p13_log" ]]; then
+  _p13_line="$(grep -o 'PHASE13_SUMMARY:[^ ]*' "$_p13_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p13_line" ]]; then
+    _p13_data="${_p13_line#PHASE13_SUMMARY:}"
+    phase13_verdict="$(printf '%s' "$_p13_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase13_state_signature="$(printf '%s' "$_p13_data" | grep -o 'state_signature=[^|]*' | cut -d= -f2)"
+    phase13_evolution_signature="$(printf '%s' "$_p13_data" | grep -o 'evolution_signature=[^|]*' | cut -d= -f2)"
+    phase13_measurement_signature="$(printf '%s' "$_p13_data" | grep -o 'measurement_signature=[^|]*' | cut -d= -f2)"
+    phase13_replay_loops="$(printf '%s' "$_p13_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase13_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase13_replay_loops="0"
+fi
+
+phase13_state_idx=-1
+phase13_unitary_idx=-1
+phase13_evolution_idx=-1
+phase13_measurement_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase13_qubit_state_invariants" ]]; then
+    phase13_state_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase13_unitary_invariants" ]]; then
+    phase13_unitary_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase13_evolution_replay_gate" ]]; then
+    phase13_evolution_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase13_measurement_contract_gate" ]]; then
+    phase13_measurement_idx="$i"
+  fi
+done
+
+phase13_state_result="FAIL"
+phase13_unitary_result="FAIL"
+phase13_evolution_result="FAIL"
+phase13_measurement_result="FAIL"
+if [[ "$phase13_state_idx" -ge 0 ]]; then
+  phase13_state_result="${results[$phase13_state_idx]}"
+fi
+if [[ "$phase13_unitary_idx" -ge 0 ]]; then
+  phase13_unitary_result="${results[$phase13_unitary_idx]}"
+fi
+if [[ "$phase13_evolution_idx" -ge 0 ]]; then
+  phase13_evolution_result="${results[$phase13_evolution_idx]}"
+fi
+if [[ "$phase13_measurement_idx" -ge 0 ]]; then
+  phase13_measurement_result="${results[$phase13_measurement_idx]}"
+fi
+
+if [[ "$phase13_state_result" == "PASS" ]] \
+  && [[ "$phase13_unitary_result" == "PASS" ]] \
+  && [[ "$phase13_evolution_result" == "PASS" ]] \
+  && [[ "$phase13_measurement_result" == "PASS" ]] \
+  && [[ "$phase13_verdict" == "true" ]]; then
+  phase13_top_level_result="PASS"
+fi
+
 # Generate JSON summary first so regression detection can work
 {
   echo "{";
@@ -413,7 +490,7 @@ try:
         "phase12_resonance_gate": resonance_gate,
         "phase12_telemetry_digest": tel_digest,
     }
-      doc['phase12_drift_window'] = {
+    doc['phase12_drift_window'] = {
         "enabled": as_bool(drift_enabled),
         "replay_loop_count": int(replay_loops),
         "baseline_available": as_bool(baseline_available),
@@ -426,13 +503,44 @@ try:
         "current_signature_hash": current_signature_hash,
         "baseline_telemetry_digest": baseline_telemetry_digest,
         "current_telemetry_digest": current_telemetry_digest,
-      }
+    }
     with open(json_path, 'w') as f:
         json.dump(doc, f, indent=2)
 except Exception as e:
     print(f"error patching phase12: {e}", file=sys.stderr)
     sys.exit(1)
 PHASE12_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase12 JSON patch failed" >&2
+  exit 1
+fi
+
+# Patch phase13 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase13_verdict" "$phase13_state_signature" "$phase13_evolution_signature" "$phase13_measurement_signature" "$phase13_replay_loops" <<'PHASE13_PATCH_PY'
+import json, sys
+
+json_path, verdict, state_signature, evolution_signature, measurement_signature, replay_loops = sys.argv[1:7]
+
+try:
+  with open(json_path, 'r') as f:
+    doc = json.load(f)
+  doc['phase13'] = {
+    "phase13_verdict": verdict,
+    "phase13_state_signature": state_signature,
+    "phase13_evolution_signature": evolution_signature,
+    "phase13_measurement_signature": measurement_signature,
+    "phase13_replay_loops": int(replay_loops),
+  }
+  with open(json_path, 'w') as f:
+    json.dump(doc, f, indent=2)
+except Exception as e:
+  print(f"error patching phase13: {e}", file=sys.stderr)
+  sys.exit(1)
+PHASE13_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase13 JSON patch failed" >&2
+  exit 1
+fi
 
 # Schema-versioned regression detection (now with JSON available)
 if [[ "$REGRESSION_ENABLED" == "1" ]]; then
@@ -519,6 +627,7 @@ if [[ -n "$phase12_drift_window_result" ]]; then
   printf "%-32s | %s\n" "$phase12_drift_window_label" "$phase12_drift_window_result"
 fi
 printf "%-32s | %s\n" "$phase12_top_level_label" "$phase12_top_level_result"
+printf "%-32s | %s\n" "$phase13_top_level_label" "$phase13_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi

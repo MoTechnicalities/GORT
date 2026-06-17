@@ -53,6 +53,7 @@ pub mod cognition {
     pub mod phase90_multishape_interaction_dynamics;
     pub mod phase90_geometry_driven_adjustment_operators;
     pub mod phase12_emergent_cognitive_programs;
+    pub mod phase13_qubit_kernel;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -161,6 +162,22 @@ pub mod cognition {
         Phase12EmergentCognitiveProgramStep,
         phase12_emit_program_telemetry,
         phase12_synthesize_emergent_cognitive_program,
+    };
+    pub use phase13_qubit_kernel::{
+        Phase13MeasurementOutcome,
+        Phase13QubitState,
+        Phase13QubitUnaryOp,
+        Phase13UnitarySequenceResult,
+        phase13_apply_unitary,
+        phase13_apply_unitary_sequence,
+        phase13_build_qubit_state,
+        phase13_emit_measurement_telemetry,
+        phase13_emit_state_telemetry,
+        phase13_measure_z,
+        phase13_ops_commute,
+        phase13_unitary_signature,
+        phase13_validate_qubit_state_invariants,
+        phase13_validate_unitary_invariants,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -333,6 +350,20 @@ pub use cognition::{
     Phase12EmergentCognitiveProgramStep,
     phase12_emit_program_telemetry,
     phase12_synthesize_emergent_cognitive_program,
+    Phase13MeasurementOutcome,
+    Phase13QubitState,
+    Phase13QubitUnaryOp,
+    Phase13UnitarySequenceResult,
+    phase13_apply_unitary,
+    phase13_apply_unitary_sequence,
+    phase13_build_qubit_state,
+    phase13_emit_measurement_telemetry,
+    phase13_emit_state_telemetry,
+    phase13_measure_z,
+    phase13_ops_commute,
+    phase13_unitary_signature,
+    phase13_validate_qubit_state_invariants,
+    phase13_validate_unitary_invariants,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

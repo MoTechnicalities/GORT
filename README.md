@@ -372,6 +372,55 @@ What it introduces:
 Deterministic capability:
 
 - GORT can classify, compare, cluster, and refine its own emergent programs.
+- Phase 13 establishes the first operator-regulated geometric kernel in GORT, where governed state representations become executable through deterministic operator application and measurement contracts.
+
+#### Phase 13 Minimal Computable Qubit Kernel (Draft Spec)
+
+To make the recent qubit discussion operational inside GORT governance, Phase 13 can start with a strict minimal kernel that separates state definition from computable dynamics.
+
+Module goal:
+
+- Promote qubit representation from static state space to deterministic computational primitive with the smallest additional structure.
+
+Minimal contract:
+
+- `QubitState`: normalized pure-state representation over complex amplitudes.
+- `QubitUnaryOp`: one allowed unitary operator with deterministic serialization and signature.
+- `apply_unitary(state, op) -> state'`: closed, deterministic evolution rule.
+- `measure_z(state, seedless_policy) -> (bit, post_state)`: deterministic measurement contract for governed test fixtures.
+
+State schema (proposed):
+
+- `alpha_re`, `alpha_im`, `beta_re`, `beta_im` as decimal-encoded scalars.
+- `norm_error` derived field bounded by tolerance.
+- `state_signature` as canonical hash over normalized serialized amplitudes.
+
+Operator schema (proposed):
+
+- `u00`, `u01`, `u10`, `u11` complex entries.
+- `unitarity_residual` derived field bounded by tolerance.
+- `op_signature` as canonical hash over matrix entries and canonical ordering.
+
+Deterministic invariants (proposed):
+
+- Normalization invariant: input and output states satisfy `|alpha|^2 + |beta|^2 = 1` within configured tolerance.
+- Unitarity invariant: `U* U = I` within configured tolerance before application.
+- Replay invariant: identical `(state_signature, op_signature)` input tuple yields identical output signature.
+- Serialization invariant: canonical serialization is byte-stable across runs and worker counts.
+- Measurement contract invariant: fixture mode uses deterministic threshold policy and emits reproducible `measurement_signature`.
+
+Gauntlet-style acceptance checks (proposed):
+
+- `phase13_qubit_state_invariants`
+- `phase13_unitary_invariants`
+- `phase13_evolution_replay_gate`
+- `phase13_measurement_contract_gate`
+- `phase13_top_level_summary`
+
+Rationale:
+
+- This keeps Phase 13 minimal and formal: one state type plus one allowed unitary evolution already constitutes computation.
+- Tensor-product composition and entangling gates remain explicit next increments after this kernel is replay-stable and schema-governed.
 
 ##### Phase 14: Program Topology and Program Geometry
 
