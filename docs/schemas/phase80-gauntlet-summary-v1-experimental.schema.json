@@ -260,6 +260,22 @@
         "phase16_replay_loops": { "type": "integer", "minimum": 0 }
       }
     },
+    "phase17": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase17_verdict",
+        "semantic_signature",
+        "semantic_digest",
+        "replay_loops"
+      ],
+      "properties": {
+        "phase17_verdict": { "type": "string", "minLength": 1 },
+        "semantic_signature": { "type": "string", "minLength": 1 },
+        "semantic_digest": { "type": "string", "minLength": 1 },
+        "replay_loops": { "type": "integer", "minimum": 0 }
+      }
+    },
     "regression_delta": {
       "type": "object",
       "additionalProperties": false,

@@ -121,6 +121,9 @@ labels=(
   "phase16_trajectory_classification_gate"
   "phase16_thought_path_replay_gate"
   "phase16_step_signature_chain_gate"
+  "phase17_semantic_surface_invariants"
+  "phase17_semantic_measurement_gate"
+  "phase17_semantic_replay_gate"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -155,6 +158,9 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_trajectory_classification_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_thought_path_replay_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_step_signatures_are_chained_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase17_semantic_surface_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase17_semantic_measurement_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase17_semantic_replay_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -192,6 +198,8 @@ phase15_top_level_label="phase15_top_level_summary"
 phase15_top_level_result="FAIL"
 phase16_top_level_label="phase16_top_level_summary"
 phase16_top_level_result="FAIL"
+phase17_top_level_label="phase17_top_level_summary"
+phase17_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -569,6 +577,132 @@ if [[ "$phase15_state_result" == "PASS" ]] \
   phase15_top_level_result="PASS"
 fi
 
+# Extract Phase 16 telemetry from test log
+phase16_verdict="unknown"
+phase16_trajectory_signature="unknown"
+phase16_telemetry_digest="unknown"
+phase16_step_count="0"
+phase16_replay_loops="0"
+_p16_log="$OUT_DIR/phase16_thought_path_replay_gate.log"
+if [[ -f "$_p16_log" ]]; then
+  _p16_line="$(grep -o 'PHASE16_SUMMARY:[^ ]*' "$_p16_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p16_line" ]]; then
+    _p16_data="${_p16_line#PHASE16_SUMMARY:}"
+    phase16_verdict="$(printf '%s' "$_p16_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase16_trajectory_signature="$(printf '%s' "$_p16_data" | grep -o 'trajectory_signature=[^|]*' | cut -d= -f2)"
+    phase16_telemetry_digest="$(printf '%s' "$_p16_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase16_step_count="$(printf '%s' "$_p16_data" | grep -o 'step_count=[^|]*' | cut -d= -f2)"
+    phase16_replay_loops="$(printf '%s' "$_p16_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase16_step_count" =~ ^[0-9]+$ ]]; then
+  phase16_step_count="0"
+fi
+if ! [[ "$phase16_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase16_replay_loops="0"
+fi
+
+phase16_state_idx=-1
+phase16_classify_idx=-1
+phase16_replay_idx=-1
+phase16_chain_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase16_thought_path_invariants" ]]; then
+    phase16_state_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase16_trajectory_classification_gate" ]]; then
+    phase16_classify_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase16_thought_path_replay_gate" ]]; then
+    phase16_replay_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase16_step_signature_chain_gate" ]]; then
+    phase16_chain_idx="$i"
+  fi
+done
+
+phase16_state_result="FAIL"
+phase16_classify_result="FAIL"
+phase16_replay_result="FAIL"
+phase16_chain_result="FAIL"
+if [[ "$phase16_state_idx" -ge 0 ]]; then
+  phase16_state_result="${results[$phase16_state_idx]}"
+fi
+if [[ "$phase16_classify_idx" -ge 0 ]]; then
+  phase16_classify_result="${results[$phase16_classify_idx]}"
+fi
+if [[ "$phase16_replay_idx" -ge 0 ]]; then
+  phase16_replay_result="${results[$phase16_replay_idx]}"
+fi
+if [[ "$phase16_chain_idx" -ge 0 ]]; then
+  phase16_chain_result="${results[$phase16_chain_idx]}"
+fi
+
+if [[ "$phase16_state_result" == "PASS" ]] \
+  && [[ "$phase16_classify_result" == "PASS" ]] \
+  && [[ "$phase16_replay_result" == "PASS" ]] \
+  && [[ "$phase16_chain_result" == "PASS" ]] \
+  && [[ "$phase16_verdict" == "true" ]]; then
+  phase16_top_level_result="PASS"
+fi
+
+# Extract Phase 17 telemetry from test log
+phase17_verdict="unknown"
+phase17_semantic_signature="unknown"
+phase17_semantic_digest="unknown"
+phase17_replay_loops="0"
+_p17_log="$OUT_DIR/phase17_semantic_replay_gate.log"
+if [[ -f "$_p17_log" ]]; then
+  _p17_line="$(grep -o 'PHASE17_SUMMARY:[^ ]*' "$_p17_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p17_line" ]]; then
+    _p17_data="${_p17_line#PHASE17_SUMMARY:}"
+    phase17_verdict="$(printf '%s' "$_p17_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase17_semantic_signature="$(printf '%s' "$_p17_data" | grep -o 'semantic_signature=[^|]*' | cut -d= -f2)"
+    phase17_semantic_digest="$(printf '%s' "$_p17_data" | grep -o 'semantic_digest=[^|]*' | cut -d= -f2)"
+    phase17_replay_loops="$(printf '%s' "$_p17_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase17_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase17_replay_loops="0"
+fi
+
+phase17_surface_idx=-1
+phase17_measurement_idx=-1
+phase17_replay_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase17_semantic_surface_invariants" ]]; then
+    phase17_surface_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase17_semantic_measurement_gate" ]]; then
+    phase17_measurement_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase17_semantic_replay_gate" ]]; then
+    phase17_replay_idx="$i"
+  fi
+done
+
+phase17_surface_result="FAIL"
+phase17_measurement_result="FAIL"
+phase17_replay_result="FAIL"
+if [[ "$phase17_surface_idx" -ge 0 ]]; then
+  phase17_surface_result="${results[$phase17_surface_idx]}"
+fi
+if [[ "$phase17_measurement_idx" -ge 0 ]]; then
+  phase17_measurement_result="${results[$phase17_measurement_idx]}"
+fi
+if [[ "$phase17_replay_idx" -ge 0 ]]; then
+  phase17_replay_result="${results[$phase17_replay_idx]}"
+fi
+
+if [[ "$phase17_surface_result" == "PASS" ]] \
+  && [[ "$phase17_measurement_result" == "PASS" ]] \
+  && [[ "$phase17_replay_result" == "PASS" ]] \
+  && [[ "$phase17_verdict" == "true" ]]; then
+  phase17_top_level_result="PASS"
+fi
+
 # Generate JSON summary first so regression detection can work
 {
   echo "{";
@@ -762,7 +896,6 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-  # Patch phase16 fields into JSON summary
 # Patch phase16 fields into JSON summary
 python3 - "$JSON_SUMMARY_PATH" "$phase16_verdict" "$phase16_trajectory_signature" "$phase16_telemetry_digest" "$phase16_step_count" "$phase16_replay_loops" <<'PHASE16_PATCH_PY'
 import json, sys
@@ -785,6 +918,32 @@ except Exception as e:
 PHASE16_PATCH_PY
 if [[ $? -ne 0 ]]; then
   echo "error: phase16 JSON patch failed" >&2
+  exit 1
+fi
+
+# Patch phase17 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase17_verdict" "$phase17_semantic_signature" "$phase17_semantic_digest" "$phase17_replay_loops" <<'PHASE17_PATCH_PY'
+import json, sys
+
+json_path, verdict, semantic_signature, semantic_digest, replay_loops = sys.argv[1:6]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase17'] = {
+        "phase17_verdict": verdict,
+        "semantic_signature": semantic_signature,
+        "semantic_digest": semantic_digest,
+        "replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase17: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE17_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase17 JSON patch failed" >&2
   exit 1
 fi
 
@@ -877,6 +1036,7 @@ printf "%-32s | %s\n" "$phase13_top_level_label" "$phase13_top_level_result"
 printf "%-32s | %s\n" "$phase14_top_level_label" "$phase14_top_level_result"
 printf "%-32s | %s\n" "$phase15_top_level_label" "$phase15_top_level_result"
 printf "%-32s | %s\n" "$phase16_top_level_label" "$phase16_top_level_result"
+printf "%-32s | %s\n" "$phase17_top_level_label" "$phase17_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi

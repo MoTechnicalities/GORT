@@ -57,6 +57,7 @@ pub mod cognition {
     pub mod phase14_operator_algebra;
     pub mod phase15_two_qubit_semantic_binding;
     pub mod phase16_thought_path_trajectories;
+    pub mod phase17_semantic_measurement_operators;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -223,6 +224,18 @@ pub mod cognition {
         phase16_emit_trajectory_telemetry,
         phase16_trace_thought_path,
         phase16_validate_trajectory_invariants,
+    };
+    pub use phase17_semantic_measurement_operators::{
+        Phase17InterpretationSurface,
+        Phase17SemanticLabel,
+        Phase17SemanticMeasurement,
+        phase17_compose_semantic_digest,
+        phase17_compose_semantic_signature,
+        phase17_emit_measurement_telemetry,
+        phase17_measure_binding,
+        phase17_measure_semantic,
+        phase17_measure_trajectory,
+        phase17_validate_semantic_measurement_invariants,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -445,6 +458,16 @@ pub use cognition::{
     phase16_emit_trajectory_telemetry,
     phase16_trace_thought_path,
     phase16_validate_trajectory_invariants,
+    Phase17InterpretationSurface,
+    Phase17SemanticLabel,
+    Phase17SemanticMeasurement,
+    phase17_compose_semantic_digest,
+    phase17_compose_semantic_signature,
+    phase17_emit_measurement_telemetry,
+    phase17_measure_binding,
+    phase17_measure_semantic,
+    phase17_measure_trajectory,
+    phase17_validate_semantic_measurement_invariants,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

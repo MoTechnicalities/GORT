@@ -34,6 +34,11 @@ use gort::{
     phase16_build_single_qubit_op, phase16_build_two_qubit_op,
     phase16_emit_trajectory_telemetry, phase16_trace_thought_path,
     phase16_validate_trajectory_invariants,
+    Phase17InterpretationSurface, Phase17SemanticLabel,
+    phase17_compose_semantic_digest, phase17_compose_semantic_signature,
+    phase17_emit_measurement_telemetry, phase17_measure_binding,
+    phase17_measure_semantic, phase17_measure_trajectory,
+    phase17_validate_semantic_measurement_invariants,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -3420,4 +3425,112 @@ fn gauntlet_phase16_step_signatures_are_chained_and_unique() {
     assert_ne!(t.steps[0].step_signature, t.steps[1].step_signature);
     // Chain invariant: to-binding of step N == from-binding of step N+1.
     assert_eq!(t.steps[0].to_binding_signature, t.steps[1].from_binding_signature);
+}
+
+// ── Phase 17 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase17_semantic_surface_invariants_are_enforced() {
+    let z0 = phase13_build_qubit_state(0, 0, 1).expect("z0");
+    let z1 = phase13_build_qubit_state(0, 0, -1).expect("z1");
+    let mx = phase13_build_qubit_state(-1, 0, 0).expect("-x");
+
+    let m_z0 = phase17_measure_semantic(&z0).expect("m_z0");
+    let m_z1 = phase17_measure_semantic(&z1).expect("m_z1");
+    let m_mx = phase17_measure_semantic(&mx).expect("m_mx");
+
+    assert_eq!(m_z0.semantic_surface, Phase17InterpretationSurface::ZAlignment);
+    assert_eq!(m_z0.semantic_label, Phase17SemanticLabel::Alignment);
+    assert_eq!(m_z1.semantic_label, Phase17SemanticLabel::Contrast);
+    assert_eq!(m_mx.semantic_label, Phase17SemanticLabel::Conflict);
+
+    phase17_validate_semantic_measurement_invariants(&m_z0).expect("m_z0 invariants");
+    phase17_validate_semantic_measurement_invariants(&m_z1).expect("m_z1 invariants");
+    phase17_validate_semantic_measurement_invariants(&m_mx).expect("m_mx invariants");
+}
+
+#[test]
+fn gauntlet_phase17_semantic_measurement_gate_is_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("q1");
+
+    let binding = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("binding");
+    let entangling = phase15_apply_two_qubit_op(&binding, Phase15TwoQubitOp::ControlledX)
+        .expect("entangling");
+
+    let ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+    ];
+    let trajectory = phase16_trace_thought_path(&binding, &ops).expect("trajectory");
+
+    let s_a = phase17_measure_semantic(&q0).expect("state A");
+    let s_b = phase17_measure_semantic(&q0).expect("state B");
+    assert_eq!(s_a, s_b);
+
+    let b_a = phase17_measure_binding(&entangling).expect("binding A");
+    let b_b = phase17_measure_binding(&entangling).expect("binding B");
+    assert_eq!(b_a, b_b);
+    assert_eq!(b_a.semantic_label, Phase17SemanticLabel::EntanglingInfluence);
+
+    let t_a = phase17_measure_trajectory(&trajectory).expect("trajectory A");
+    let t_b = phase17_measure_trajectory(&trajectory).expect("trajectory B");
+    assert_eq!(t_a, t_b);
+
+    let telemetry_a = phase17_emit_measurement_telemetry(&t_a);
+    let telemetry_b = phase17_emit_measurement_telemetry(&t_b);
+    assert_eq!(telemetry_a, telemetry_b);
+}
+
+#[test]
+fn gauntlet_phase17_semantic_replay_gate_is_byte_stable() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("q1");
+    let plus = phase13_build_qubit_state(1, 0, 0).expect("plus");
+
+    let binding = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("binding");
+    let trajectory_ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::PauliX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::FixedHadamard),
+    ];
+    let trajectory = phase16_trace_thought_path(&binding, &trajectory_ops).expect("trajectory");
+
+    let state_measurement = phase17_measure_semantic(&plus).expect("state measurement");
+    let binding_measurement = phase17_measure_binding(&binding).expect("binding measurement");
+    let trajectory_measurement = phase17_measure_trajectory(&trajectory).expect("trajectory measurement");
+
+    let baseline_measurements = vec![
+        state_measurement.clone(),
+        binding_measurement.clone(),
+        trajectory_measurement.clone(),
+    ];
+    for measurement in &baseline_measurements {
+        phase17_validate_semantic_measurement_invariants(measurement).expect("measurement invariants");
+    }
+
+    let baseline_signature = phase17_compose_semantic_signature(&baseline_measurements);
+    let baseline_digest = phase17_compose_semantic_digest(&baseline_measurements);
+
+    const PHASE17_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE17_REPLAY_LOOPS {
+        let state_current = phase17_measure_semantic(&plus).expect("state current");
+        let binding_current = phase17_measure_binding(&binding).expect("binding current");
+        let trajectory_current = phase17_measure_trajectory(&trajectory).expect("trajectory current");
+        let current = vec![state_current, binding_current, trajectory_current];
+
+        assert_eq!(
+            phase17_compose_semantic_signature(&current),
+            baseline_signature,
+        );
+        assert_eq!(phase17_compose_semantic_digest(&current), baseline_digest);
+    }
+
+    println!(
+        "PHASE17_SUMMARY:verdict={}|semantic_signature={}|semantic_digest={}|replay_loops={}",
+        true,
+        baseline_signature,
+        baseline_digest,
+        PHASE17_REPLAY_LOOPS,
+    );
 }

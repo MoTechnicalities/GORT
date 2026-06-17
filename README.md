@@ -452,15 +452,17 @@ Deterministic capability:
 
 - GORT selects programs according to internal intent fields and goal pressures.
 
-##### Phase 17: Multi-Program Arbitration
+##### Phase 17: Semantic Measurement Operators
 
 What it introduces:
 
-- Conflict resolution across competing candidate programs.
+- Deterministic semantic readout surfaces over Phase 13 state, Phase 15 binding, and Phase 16 trajectory artifacts.
+- Governed semantic collapse functions (`phase17_measure_semantic`, `phase17_measure_binding`, `phase17_measure_trajectory`) that emit canonical labels and byte-stable signatures.
 
 Deterministic capability:
 
-- GORT enforces behavioral coherence by arbitrating among multiple viable programs.
+- GORT can project internal geometric cognition into stable external meaning categories (for example: alignment, contrast, reinforcement, conflict, entangling influence).
+- Phase 17 establishes replay-stable interpretation output suitable for gauntlet governance and top-level summary contracts.
 
 ##### Phase 18: Self-Correction and Program Repair
 
