@@ -56,6 +56,7 @@ pub mod cognition {
     pub mod phase13_qubit_kernel;
     pub mod phase14_operator_algebra;
     pub mod phase15_two_qubit_semantic_binding;
+    pub mod phase16_thought_path_trajectories;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -208,6 +209,20 @@ pub mod cognition {
         phase15_emit_binding_telemetry,
         phase15_emit_op_telemetry,
         phase15_validate_two_qubit_invariants,
+    };
+    pub use phase16_thought_path_trajectories::{
+        Phase16QubitTarget,
+        Phase16ThoughtOp,
+        Phase16ThoughtOpKind,
+        Phase16ThoughtStep,
+        Phase16ThoughtTrajectory,
+        Phase16TrajectoryKind,
+        phase16_apply_thought_op,
+        phase16_build_single_qubit_op,
+        phase16_build_two_qubit_op,
+        phase16_emit_trajectory_telemetry,
+        phase16_trace_thought_path,
+        phase16_validate_trajectory_invariants,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -418,6 +433,18 @@ pub use cognition::{
     phase15_emit_binding_telemetry,
     phase15_emit_op_telemetry,
     phase15_validate_two_qubit_invariants,
+    Phase16QubitTarget,
+    Phase16ThoughtOp,
+    Phase16ThoughtOpKind,
+    Phase16ThoughtStep,
+    Phase16ThoughtTrajectory,
+    Phase16TrajectoryKind,
+    phase16_apply_thought_op,
+    phase16_build_single_qubit_op,
+    phase16_build_two_qubit_op,
+    phase16_emit_trajectory_telemetry,
+    phase16_trace_thought_path,
+    phase16_validate_trajectory_invariants,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

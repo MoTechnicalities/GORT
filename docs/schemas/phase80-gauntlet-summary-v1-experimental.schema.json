@@ -242,6 +242,24 @@
         "phase15_replay_loops": { "type": "integer", "minimum": 0 }
       }
     },
+    "phase16": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase16_verdict",
+        "phase16_trajectory_signature",
+        "phase16_telemetry_digest",
+        "phase16_step_count",
+        "phase16_replay_loops"
+      ],
+      "properties": {
+        "phase16_verdict": { "type": "string", "minLength": 1 },
+        "phase16_trajectory_signature": { "type": "string", "minLength": 1 },
+        "phase16_telemetry_digest": { "type": "string", "minLength": 1 },
+        "phase16_step_count": { "type": "integer", "minimum": 0 },
+        "phase16_replay_loops": { "type": "integer", "minimum": 0 }
+      }
+    },
     "regression_delta": {
       "type": "object",
       "additionalProperties": false,

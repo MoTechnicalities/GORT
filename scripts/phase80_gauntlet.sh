@@ -117,6 +117,10 @@ labels=(
   "phase15_binding_classification_gate"
   "phase15_entangling_op_replay_gate"
   "phase15_swap_involutory_gate"
+  "phase16_thought_path_invariants"
+  "phase16_trajectory_classification_gate"
+  "phase16_thought_path_replay_gate"
+  "phase16_step_signature_chain_gate"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -147,6 +151,10 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_binding_classification_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_entangling_op_replay_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase15_swap_involutory_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_thought_path_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_trajectory_classification_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_thought_path_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase16_step_signatures_are_chained_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -175,12 +183,15 @@ phase12_drift_window_label="phase12_drift_window"
 phase12_drift_window_result=""
 phase12_top_level_label="phase12_top_level_summary"
 phase12_top_level_result="FAIL"
+# (Phase16 extraction inserted before JSON generation block)
 phase13_top_level_label="phase13_top_level_summary"
 phase13_top_level_result="FAIL"
 phase14_top_level_label="phase14_top_level_summary"
 phase14_top_level_result="FAIL"
 phase15_top_level_label="phase15_top_level_summary"
 phase15_top_level_result="FAIL"
+phase16_top_level_label="phase16_top_level_summary"
+phase16_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -218,6 +229,7 @@ if [[ "$PHASE11_LONG_HORIZON_ENABLED" == "1" ]]; then
     drift_window_result="${drift_loop_window// step /@step}"
   else
     drift_window_result="unknown"
+
   fi
 
   if [[ "$drift_detected" == "false" ]]; then
@@ -750,6 +762,32 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
+  # Patch phase16 fields into JSON summary
+# Patch phase16 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase16_verdict" "$phase16_trajectory_signature" "$phase16_telemetry_digest" "$phase16_step_count" "$phase16_replay_loops" <<'PHASE16_PATCH_PY'
+import json, sys
+json_path, verdict, traj_sig, tel_digest, step_count, replay_loops = sys.argv[1:7]
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase16'] = {
+        "phase16_verdict": verdict,
+        "phase16_trajectory_signature": traj_sig,
+        "phase16_telemetry_digest": tel_digest,
+        "phase16_step_count": int(step_count),
+        "phase16_replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase16: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE16_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase16 JSON patch failed" >&2
+  exit 1
+fi
+
 # Schema-versioned regression detection (now with JSON available)
 if [[ "$REGRESSION_ENABLED" == "1" ]]; then
   if [[ -f "$REGRESSION_BASELINE_PATH" ]]; then
@@ -838,6 +876,7 @@ printf "%-32s | %s\n" "$phase12_top_level_label" "$phase12_top_level_result"
 printf "%-32s | %s\n" "$phase13_top_level_label" "$phase13_top_level_result"
 printf "%-32s | %s\n" "$phase14_top_level_label" "$phase14_top_level_result"
 printf "%-32s | %s\n" "$phase15_top_level_label" "$phase15_top_level_result"
+printf "%-32s | %s\n" "$phase16_top_level_label" "$phase16_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi

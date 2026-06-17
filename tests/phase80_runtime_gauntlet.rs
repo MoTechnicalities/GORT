@@ -30,6 +30,10 @@ use gort::{
     phase15_apply_two_qubit_op, phase15_apply_two_qubit_sequence,
     phase15_build_two_qubit_state, phase15_emit_binding_telemetry,
     phase15_validate_two_qubit_invariants,
+    Phase16TrajectoryKind, Phase16QubitTarget,
+    phase16_build_single_qubit_op, phase16_build_two_qubit_op,
+    phase16_emit_trajectory_telemetry, phase16_trace_thought_path,
+    phase16_validate_trajectory_invariants,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -3310,4 +3314,110 @@ fn gauntlet_phase15_swap_is_involutory_and_deterministic() {
     // Determinism: two independent SWAP calls produce identical results.
     let once_again = phase15_apply_two_qubit_op(&state, Phase15TwoQubitOp::Swap).expect("replay");
     assert_eq!(once, once_again);
+}
+
+// ── Phase 16 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase16_thought_path_invariants_are_enforced() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+
+    let t = phase16_trace_thought_path(&initial, &[]).expect("degenerate");
+    phase16_validate_trajectory_invariants(&t).expect("degenerate invariants");
+    assert_eq!(t.trajectory_kind, Phase16TrajectoryKind::Degenerate);
+    assert_eq!(t.step_count, 0);
+
+    let telemetry = phase16_emit_trajectory_telemetry(&t);
+    assert!(telemetry.contains("well_formed=true"));
+    assert!(telemetry.contains("Degenerate"));
+}
+
+#[test]
+fn gauntlet_phase16_trajectory_classification_gate_is_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("correlated");
+
+    let convergent_ops = vec![
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::PauliX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::PauliX),
+    ];
+    let tc = phase16_trace_thought_path(&initial, &convergent_ops).expect("convergent");
+    assert_eq!(tc.trajectory_kind, Phase16TrajectoryKind::Convergent);
+
+    let divergent_ops = vec![
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliX),
+    ];
+    let td = phase16_trace_thought_path(&initial, &divergent_ops).expect("divergent");
+    assert_eq!(td.trajectory_kind, Phase16TrajectoryKind::Divergent);
+
+    let entangling_ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+    ];
+    let te = phase16_trace_thought_path(&initial, &entangling_ops).expect("entangling");
+    assert_eq!(te.trajectory_kind, Phase16TrajectoryKind::Entangling);
+
+    let tc2 = phase16_trace_thought_path(&initial, &convergent_ops).expect("convergent2");
+    assert_eq!(tc, tc2);
+}
+
+#[test]
+fn gauntlet_phase16_thought_path_replay_gate_is_byte_stable() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+
+    let ops = vec![
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::FixedHadamard),
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::PauliX),
+    ];
+
+    let baseline = phase16_trace_thought_path(&initial, &ops).expect("baseline");
+    phase16_validate_trajectory_invariants(&baseline).expect("baseline invariants");
+    let baseline_telemetry = phase16_emit_trajectory_telemetry(&baseline);
+
+    const PHASE16_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE16_REPLAY_LOOPS {
+        let current = phase16_trace_thought_path(&initial, &ops).expect("current");
+        assert_eq!(current, baseline);
+        assert_eq!(phase16_emit_trajectory_telemetry(&current), baseline_telemetry);
+    }
+
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        baseline_telemetry.hash(&mut h);
+        let digest = format!("{:016x}", h.finish());
+        println!(
+            "PHASE16_SUMMARY:verdict={}|trajectory_signature={}|telemetry_digest={}|step_count={}|replay_loops={}",
+            baseline.trajectory_well_formed,
+            baseline.trajectory_signature,
+            digest,
+            baseline.step_count,
+            PHASE16_REPLAY_LOOPS,
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase16_step_signatures_are_chained_and_unique() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("|0>");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+
+    let ops = vec![
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+    ];
+    let t = phase16_trace_thought_path(&initial, &ops).expect("two-step");
+    phase16_validate_trajectory_invariants(&t).expect("invariants");
+
+    assert_eq!(t.step_count, 2);
+    assert_eq!(t.steps[0].step_index, 0);
+    assert_eq!(t.steps[1].step_index, 1);
+    assert_ne!(t.steps[0].step_signature, t.steps[1].step_signature);
+    // Chain invariant: to-binding of step N == from-binding of step N+1.
+    assert_eq!(t.steps[0].to_binding_signature, t.steps[1].from_binding_signature);
 }
