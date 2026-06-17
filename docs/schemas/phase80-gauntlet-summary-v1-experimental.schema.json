@@ -330,6 +330,26 @@
         "replay_loops": { "type": "integer", "minimum": 0 }
       }
     },
+    "phase21": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase21_verdict",
+        "arbitration_signature",
+        "correction_signature",
+        "stabilization_signature",
+        "telemetry_digest",
+        "candidate_count"
+      ],
+      "properties": {
+        "phase21_verdict": { "type": "string", "minLength": 1 },
+        "arbitration_signature": { "type": "string", "minLength": 1 },
+        "correction_signature": { "type": "string", "minLength": 1 },
+        "stabilization_signature": { "type": "string", "minLength": 1 },
+        "telemetry_digest": { "type": "string", "minLength": 1 },
+        "candidate_count": { "type": "integer", "minimum": 3 }
+      }
+    },
     "regression_delta": {
       "type": "object",
       "additionalProperties": false,

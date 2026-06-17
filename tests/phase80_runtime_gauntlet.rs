@@ -52,6 +52,7 @@ use gort::{
     phase20_detect_drift, phase20_emit_correction_telemetry,
     phase20_emit_stabilization_telemetry, phase20_validate_correction_plan_invariants,
     phase20_validate_stabilized_inference_invariants,
+    CognitionPlan, run_cognition_tournament,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -3955,6 +3956,70 @@ fn gauntlet_phase20_stabilization_replay_gate_is_byte_stable() {
             baseline.stabilization_signature,
             digest,
             PHASE20_REPLAY_LOOPS,
+        );
+    }
+}
+
+// ── Phase 21 gauntlet gate ────────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase21_cognition_tournament_is_deterministic() {
+    let plans = vec![
+        CognitionPlan {
+            goal: "Deliver package".to_string(),
+            steps: vec![
+                "Pick up package".to_string(),
+                "Drive north".to_string(),
+                "Drop off package".to_string(),
+            ],
+        },
+        CognitionPlan {
+            goal: "Deliver package".to_string(),
+            steps: vec![
+                "Drive north".to_string(),
+                "Pick up package".to_string(),
+                "Drop off package".to_string(),
+            ],
+        },
+        CognitionPlan {
+            goal: "Deliver package".to_string(),
+            steps: vec![
+                "Pick up package".to_string(),
+                "Check fuel".to_string(),
+                "Drive north".to_string(),
+                "Drop off package".to_string(),
+            ],
+        },
+    ];
+
+    let a = run_cognition_tournament(&plans).expect("run a");
+    let b = run_cognition_tournament(&plans).expect("run b");
+
+    assert_eq!(a, b, "tournament must be byte-stable across identical runs");
+    assert_eq!(a.candidate_count, 3);
+    assert!(!a.arbitration_signature.is_empty());
+    assert!(!a.correction_signature.is_empty());
+    assert!(!a.stabilization_signature.is_empty());
+    assert!(!a.telemetry_digest.is_empty());
+    assert!(a.winner_plan_id.starts_with("plan_"));
+
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        a.arbitration_signature.hash(&mut h);
+        a.correction_signature.hash(&mut h);
+        a.stabilization_signature.hash(&mut h);
+        a.telemetry_digest.hash(&mut h);
+        let digest = format!("{:016x}", h.finish());
+        println!(
+            "PHASE21_SUMMARY:verdict={}|arbitration_signature={}|correction_signature={}|stabilization_signature={}|telemetry_digest={}|candidate_count={}",
+            true,
+            a.arbitration_signature,
+            a.correction_signature,
+            a.stabilization_signature,
+            digest,
+            a.candidate_count,
         );
     }
 }

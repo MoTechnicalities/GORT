@@ -61,6 +61,7 @@ pub mod cognition {
     pub mod phase18_resonance_inference;
     pub mod phase19_arbitration_operators;
     pub mod phase20_self_correction_operators;
+    pub mod cognition_session;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -280,6 +281,14 @@ pub mod cognition {
         phase20_emit_stabilization_telemetry,
         phase20_validate_correction_plan_invariants,
         phase20_validate_stabilized_inference_invariants,
+    };
+    pub use cognition_session::{
+        CognitionPlan,
+        CognitionPlanTrace,
+        CognitionSessionResult,
+        CognitionTournamentResult,
+        run_cognition_session,
+        run_cognition_tournament,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -547,6 +556,12 @@ pub use cognition::{
     phase20_emit_stabilization_telemetry,
     phase20_validate_correction_plan_invariants,
     phase20_validate_stabilized_inference_invariants,
+    CognitionPlan,
+    CognitionPlanTrace,
+    CognitionSessionResult,
+    CognitionTournamentResult,
+    run_cognition_session,
+    run_cognition_tournament,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

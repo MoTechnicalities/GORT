@@ -133,6 +133,7 @@ labels=(
   "phase20_drift_correction_invariants"
   "phase20_repair_gate"
   "phase20_stabilization_replay_gate"
+  "phase21_cognition_tournament"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -179,6 +180,7 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase20_drift_correction_invariants_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase20_repair_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase20_stabilization_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase21_cognition_tournament_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -224,6 +226,8 @@ phase19_top_level_label="phase19_top_level_summary"
 phase19_top_level_result="FAIL"
 phase20_top_level_label="phase20_top_level_summary"
 phase20_top_level_result="FAIL"
+phase21_top_level_label="phase21_top_level_summary"
+phase21_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -1226,6 +1230,76 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
+# Extract Phase 21 telemetry from test log
+phase21_verdict="unknown"
+phase21_arbitration_signature="unknown"
+phase21_correction_signature="unknown"
+phase21_stabilization_signature="unknown"
+phase21_telemetry_digest="unknown"
+phase21_candidate_count="0"
+_p21_log="$OUT_DIR/phase21_cognition_tournament.log"
+if [[ -f "$_p21_log" ]]; then
+  _p21_line="$(grep -o 'PHASE21_SUMMARY:[^ ]*' "$_p21_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p21_line" ]]; then
+    _p21_data="${_p21_line#PHASE21_SUMMARY:}"
+    phase21_verdict="$(printf '%s' "$_p21_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase21_arbitration_signature="$(printf '%s' "$_p21_data" | grep -o 'arbitration_signature=[^|]*' | cut -d= -f2)"
+    phase21_correction_signature="$(printf '%s' "$_p21_data" | grep -o 'correction_signature=[^|]*' | cut -d= -f2)"
+    phase21_stabilization_signature="$(printf '%s' "$_p21_data" | grep -o 'stabilization_signature=[^|]*' | cut -d= -f2)"
+    phase21_telemetry_digest="$(printf '%s' "$_p21_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase21_candidate_count="$(printf '%s' "$_p21_data" | grep -o 'candidate_count=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase21_candidate_count" =~ ^[0-9]+$ ]]; then
+  phase21_candidate_count="0"
+fi
+
+phase21_tournament_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase21_cognition_tournament" ]]; then
+    phase21_tournament_idx="$i"
+  fi
+done
+
+phase21_tournament_result="FAIL"
+if [[ "$phase21_tournament_idx" -ge 0 ]]; then
+  phase21_tournament_result="${results[$phase21_tournament_idx]}"
+fi
+
+if [[ "$phase21_tournament_result" == "PASS" ]] \
+  && [[ "$phase21_verdict" == "true" ]]; then
+  phase21_top_level_result="PASS"
+fi
+
+# Patch phase21 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase21_verdict" "$phase21_arbitration_signature" "$phase21_correction_signature" "$phase21_stabilization_signature" "$phase21_telemetry_digest" "$phase21_candidate_count" <<'PHASE21_PATCH_PY'
+import json, sys
+
+json_path, verdict, arbitration_signature, correction_signature, stabilization_signature, telemetry_digest, candidate_count = sys.argv[1:8]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase21'] = {
+        "phase21_verdict": verdict,
+        "arbitration_signature": arbitration_signature,
+        "correction_signature": correction_signature,
+        "stabilization_signature": stabilization_signature,
+        "telemetry_digest": telemetry_digest,
+        "candidate_count": int(candidate_count),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase21: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE21_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase21 JSON patch failed" >&2
+  exit 1
+fi
+
 # Schema-versioned regression detection (now with JSON available)
 if [[ "$REGRESSION_ENABLED" == "1" ]]; then
   if [[ -f "$REGRESSION_BASELINE_PATH" ]]; then
@@ -1319,6 +1393,7 @@ printf "%-32s | %s\n" "$phase17_top_level_label" "$phase17_top_level_result"
 printf "%-32s | %s\n" "$phase18_top_level_label" "$phase18_top_level_result"
 printf "%-32s | %s\n" "$phase19_top_level_label" "$phase19_top_level_result"
 printf "%-32s | %s\n" "$phase20_top_level_label" "$phase20_top_level_result"
+printf "%-32s | %s\n" "$phase21_top_level_label" "$phase21_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi
