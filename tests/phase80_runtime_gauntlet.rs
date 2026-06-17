@@ -22,6 +22,10 @@ use gort::{
     phase13_emit_measurement_telemetry, phase13_emit_state_telemetry,
     phase13_measure_z, phase13_ops_commute, phase13_unitary_signature,
     phase13_validate_qubit_state_invariants, phase13_validate_unitary_invariants,
+    Phase14OperatorFamilyKind,
+    phase14_build_clifford_family, phase14_build_commutation_table, phase14_build_pauli_family,
+    phase14_compute_commutator, phase14_emit_algebra_telemetry, phase14_emit_family_telemetry,
+    phase14_validate_family_invariants, phase14_validate_table_invariants,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -3081,4 +3085,113 @@ fn gauntlet_phase13_measurement_contract_gate_is_fixture_deterministic() {
             assert_eq!(a.post_state, phase13_build_qubit_state(0, 0, -1).expect("|1>"));
         }
     }
+}
+
+// ── Phase 14 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase14_operator_family_invariants_are_enforced() {
+    let pauli = phase14_build_pauli_family();
+    phase14_validate_family_invariants(&pauli).expect("pauli family invariants");
+
+    assert_eq!(pauli.family_kind, Phase14OperatorFamilyKind::PauliGroup);
+    assert!(pauli.family_well_formed);
+    assert_eq!(pauli.ops.len(), 2);
+
+    let telemetry = phase14_emit_family_telemetry(&pauli);
+    assert!(telemetry.contains("family=pauli_xz"));
+    assert!(telemetry.contains("well_formed=true"));
+}
+
+#[test]
+fn gauntlet_phase14_commutator_non_commutation_is_enforced() {
+    // [X, Z] must be non-zero — this is the foundational non-commutative invariant.
+    let xz = phase14_compute_commutator(
+        Phase13QubitUnaryOp::PauliX,
+        Phase13QubitUnaryOp::PauliZ,
+    )
+    .expect("commutator xz");
+    assert!(!xz.is_zero, "X and Z must not commute");
+
+    // [X, X] must be zero — same operator commutes with itself.
+    let xx = phase14_compute_commutator(
+        Phase13QubitUnaryOp::PauliX,
+        Phase13QubitUnaryOp::PauliX,
+    )
+    .expect("commutator xx");
+    assert!(xx.is_zero, "[X, X] must be zero");
+
+    // Anti-symmetry: [X, Z] = -[Z, X] (off-diagonal signs flip).
+    let zx = phase14_compute_commutator(
+        Phase13QubitUnaryOp::PauliZ,
+        Phase13QubitUnaryOp::PauliX,
+    )
+    .expect("commutator zx");
+    for r in 0..2 {
+        for c in 0..2 {
+            assert_eq!(
+                xz.matrix[r][c],
+                -zx.matrix[r][c],
+                "anti-symmetry violation at [{r},{c}]"
+            );
+        }
+    }
+}
+
+#[test]
+fn gauntlet_phase14_commutation_table_replay_gate_is_byte_stable() {
+    let family = phase14_build_pauli_family();
+    let table_a = phase14_build_commutation_table(&family);
+    let table_b = phase14_build_commutation_table(&family);
+
+    assert_eq!(table_a, table_b);
+    phase14_validate_table_invariants(&table_a, &family).expect("table invariants");
+
+    let telemetry_a = phase14_emit_algebra_telemetry(&family, &table_a);
+    let telemetry_b = phase14_emit_algebra_telemetry(&family, &table_b);
+    assert_eq!(telemetry_a, telemetry_b);
+    assert!(telemetry_a.contains("non_commuting=1"));
+    assert!(telemetry_a.contains("well_formed=true"));
+
+    const PHASE14_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE14_REPLAY_LOOPS {
+        let t = phase14_build_commutation_table(&family);
+        assert_eq!(t, table_a);
+    }
+
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        telemetry_a.hash(&mut h);
+        let digest = format!("{:016x}", h.finish());
+
+        println!(
+            "PHASE14_SUMMARY:verdict={}|family_signature={}|table_signature={}|telemetry_digest={}|replay_loops={}",
+            family.family_well_formed,
+            family.family_signature,
+            table_a.table_signature,
+            digest,
+            PHASE14_REPLAY_LOOPS,
+        );
+    }
+}
+
+#[test]
+fn gauntlet_phase14_clifford_family_gate_is_well_formed() {
+    let clifford = phase14_build_clifford_family();
+    phase14_validate_family_invariants(&clifford).expect("clifford invariants");
+
+    assert_eq!(clifford.ops.len(), 3);
+    assert_eq!(clifford.family_kind, Phase14OperatorFamilyKind::CliffordFamily);
+
+    let table = phase14_build_commutation_table(&clifford);
+    phase14_validate_table_invariants(&table, &clifford).expect("clifford table invariants");
+
+    // Pairs involving FixedHadamard carry the irrational sentinel.
+    let h_pairs: Vec<_> = table.pairs.iter()
+        .filter(|p| p.lhs_label == "FixedHadamard" || p.rhs_label == "FixedHadamard")
+        .collect();
+    assert!(!h_pairs.is_empty());
+    assert!(h_pairs.iter().all(|p| p.commutator.commutator_signature == "irrational_pair_sentinel"));
 }

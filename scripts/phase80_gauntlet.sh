@@ -109,6 +109,10 @@ labels=(
   "phase13_unitary_invariants"
   "phase13_evolution_replay_gate"
   "phase13_measurement_contract_gate"
+  "phase14_operator_family_invariants"
+  "phase14_commutator_gate"
+  "phase14_commutation_table_replay_gate"
+  "phase14_clifford_family_gate"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -131,6 +135,10 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_unitary_invariants_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_evolution_replay_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase13_measurement_contract_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_operator_family_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_commutator_non_commutation_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_commutation_table_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase14_clifford_family_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -161,6 +169,8 @@ phase12_top_level_label="phase12_top_level_summary"
 phase12_top_level_result="FAIL"
 phase13_top_level_label="phase13_top_level_summary"
 phase13_top_level_result="FAIL"
+phase14_top_level_label="phase14_top_level_summary"
+phase14_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -403,6 +413,73 @@ if [[ "$phase13_state_result" == "PASS" ]] \
   phase13_top_level_result="PASS"
 fi
 
+# Extract Phase 14 telemetry from test log
+phase14_verdict="unknown"
+phase14_family_signature="unknown"
+phase14_table_signature="unknown"
+phase14_telemetry_digest="unknown"
+phase14_replay_loops="0"
+_p14_log="$OUT_DIR/phase14_commutation_table_replay_gate.log"
+if [[ -f "$_p14_log" ]]; then
+  _p14_line="$(grep -o 'PHASE14_SUMMARY:[^ ]*' "$_p14_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p14_line" ]]; then
+    _p14_data="${_p14_line#PHASE14_SUMMARY:}"
+    phase14_verdict="$(printf '%s' "$_p14_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase14_family_signature="$(printf '%s' "$_p14_data" | grep -o 'family_signature=[^|]*' | cut -d= -f2)"
+    phase14_table_signature="$(printf '%s' "$_p14_data" | grep -o 'table_signature=[^|]*' | cut -d= -f2)"
+    phase14_telemetry_digest="$(printf '%s' "$_p14_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase14_replay_loops="$(printf '%s' "$_p14_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase14_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase14_replay_loops="0"
+fi
+
+phase14_family_idx=-1
+phase14_commutator_idx=-1
+phase14_table_idx=-1
+phase14_clifford_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase14_operator_family_invariants" ]]; then
+    phase14_family_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase14_commutator_gate" ]]; then
+    phase14_commutator_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase14_commutation_table_replay_gate" ]]; then
+    phase14_table_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase14_clifford_family_gate" ]]; then
+    phase14_clifford_idx="$i"
+  fi
+done
+
+phase14_family_result="FAIL"
+phase14_commutator_result="FAIL"
+phase14_table_result="FAIL"
+phase14_clifford_result="FAIL"
+if [[ "$phase14_family_idx" -ge 0 ]]; then
+  phase14_family_result="${results[$phase14_family_idx]}"
+fi
+if [[ "$phase14_commutator_idx" -ge 0 ]]; then
+  phase14_commutator_result="${results[$phase14_commutator_idx]}"
+fi
+if [[ "$phase14_table_idx" -ge 0 ]]; then
+  phase14_table_result="${results[$phase14_table_idx]}"
+fi
+if [[ "$phase14_clifford_idx" -ge 0 ]]; then
+  phase14_clifford_result="${results[$phase14_clifford_idx]}"
+fi
+
+if [[ "$phase14_family_result" == "PASS" ]] \
+  && [[ "$phase14_commutator_result" == "PASS" ]] \
+  && [[ "$phase14_table_result" == "PASS" ]] \
+  && [[ "$phase14_clifford_result" == "PASS" ]] \
+  && [[ "$phase14_verdict" == "true" ]]; then
+  phase14_top_level_result="PASS"
+fi
+
 # Generate JSON summary first so regression detection can work
 {
   echo "{";
@@ -542,6 +619,33 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
+# Patch phase14 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase14_verdict" "$phase14_family_signature" "$phase14_table_signature" "$phase14_telemetry_digest" "$phase14_replay_loops" <<'PHASE14_PATCH_PY'
+import json, sys
+
+json_path, verdict, family_sig, table_sig, tel_digest, replay_loops = sys.argv[1:7]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase14'] = {
+        "phase14_verdict": verdict,
+        "phase14_family_signature": family_sig,
+        "phase14_table_signature": table_sig,
+        "phase14_telemetry_digest": tel_digest,
+        "phase14_replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase14: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE14_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase14 JSON patch failed" >&2
+  exit 1
+fi
+
 # Schema-versioned regression detection (now with JSON available)
 if [[ "$REGRESSION_ENABLED" == "1" ]]; then
   if [[ -f "$REGRESSION_BASELINE_PATH" ]]; then
@@ -628,6 +732,7 @@ if [[ -n "$phase12_drift_window_result" ]]; then
 fi
 printf "%-32s | %s\n" "$phase12_top_level_label" "$phase12_top_level_result"
 printf "%-32s | %s\n" "$phase13_top_level_label" "$phase13_top_level_result"
+printf "%-32s | %s\n" "$phase14_top_level_label" "$phase14_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi

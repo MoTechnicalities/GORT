@@ -54,6 +54,7 @@ pub mod cognition {
     pub mod phase90_geometry_driven_adjustment_operators;
     pub mod phase12_emergent_cognitive_programs;
     pub mod phase13_qubit_kernel;
+    pub mod phase14_operator_algebra;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -178,6 +179,22 @@ pub mod cognition {
         phase13_unitary_signature,
         phase13_validate_qubit_state_invariants,
         phase13_validate_unitary_invariants,
+    };
+    pub use phase14_operator_algebra::{
+        Phase14CommutationPair,
+        Phase14CommutationTable,
+        Phase14Commutator,
+        Phase14OperatorEntry,
+        Phase14OperatorFamily,
+        Phase14OperatorFamilyKind,
+        phase14_build_clifford_family,
+        phase14_build_commutation_table,
+        phase14_build_pauli_family,
+        phase14_compute_commutator,
+        phase14_emit_algebra_telemetry,
+        phase14_emit_family_telemetry,
+        phase14_validate_family_invariants,
+        phase14_validate_table_invariants,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -364,6 +381,20 @@ pub use cognition::{
     phase13_unitary_signature,
     phase13_validate_qubit_state_invariants,
     phase13_validate_unitary_invariants,
+    Phase14CommutationPair,
+    Phase14CommutationTable,
+    Phase14Commutator,
+    Phase14OperatorEntry,
+    Phase14OperatorFamily,
+    Phase14OperatorFamilyKind,
+    phase14_build_clifford_family,
+    phase14_build_commutation_table,
+    phase14_build_pauli_family,
+    phase14_compute_commutator,
+    phase14_emit_algebra_telemetry,
+    phase14_emit_family_telemetry,
+    phase14_validate_family_invariants,
+    phase14_validate_table_invariants,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

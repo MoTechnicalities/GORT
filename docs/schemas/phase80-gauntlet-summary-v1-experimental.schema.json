@@ -191,6 +191,39 @@
         }
       }
     },
+    "phase14": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase14_verdict",
+        "phase14_family_signature",
+        "phase14_table_signature",
+        "phase14_telemetry_digest",
+        "phase14_replay_loops"
+      ],
+      "properties": {
+        "phase14_verdict": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase14_family_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase14_table_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase14_telemetry_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase14_replay_loops": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "regression_delta": {
       "type": "object",
       "additionalProperties": false,
