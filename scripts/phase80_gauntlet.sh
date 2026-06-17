@@ -124,6 +124,15 @@ labels=(
   "phase17_semantic_surface_invariants"
   "phase17_semantic_measurement_gate"
   "phase17_semantic_replay_gate"
+  "phase18_resonance_field_invariants"
+  "phase18_inference_gate"
+  "phase18_replay_gate"
+  "phase19_arbitration_field_invariants"
+  "phase19_operator_selection_gate"
+  "phase19_conflict_resolution_replay_gate"
+  "phase20_drift_correction_invariants"
+  "phase20_repair_gate"
+  "phase20_stabilization_replay_gate"
   "phase10_runtime_adaptation"
   "phase80_runtime_gauntlet"
 )
@@ -161,6 +170,15 @@ commands=(
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase17_semantic_surface_invariants_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase17_semantic_measurement_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase17_semantic_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase18_resonance_field_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase18_inference_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase18_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase19_arbitration_field_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase19_operator_selection_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase19_conflict_resolution_replay_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase20_drift_correction_invariants_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase20_repair_gate_ -- --nocapture"
+  "cargo test --test phase80_runtime_gauntlet gauntlet_phase20_stabilization_replay_gate_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet gauntlet_phase10_ -- --nocapture"
   "cargo test --test phase80_runtime_gauntlet -- --nocapture"
 )
@@ -200,6 +218,12 @@ phase16_top_level_label="phase16_top_level_summary"
 phase16_top_level_result="FAIL"
 phase17_top_level_label="phase17_top_level_summary"
 phase17_top_level_result="FAIL"
+phase18_top_level_label="phase18_top_level_summary"
+phase18_top_level_result="FAIL"
+phase19_top_level_label="phase19_top_level_summary"
+phase19_top_level_result="FAIL"
+phase20_top_level_label="phase20_top_level_summary"
+phase20_top_level_result="FAIL"
 regression_delta_result=""
 regression_verdict_label="schema_regression_detection"
 regression_verdict_result=""
@@ -703,6 +727,180 @@ if [[ "$phase17_surface_result" == "PASS" ]] \
   phase17_top_level_result="PASS"
 fi
 
+# Extract Phase 18 telemetry from test log
+phase18_verdict="unknown"
+phase18_resonance_signature="unknown"
+phase18_inference_signature="unknown"
+phase18_telemetry_digest="unknown"
+phase18_replay_loops="0"
+_p18_log="$OUT_DIR/phase18_replay_gate.log"
+if [[ -f "$_p18_log" ]]; then
+  _p18_line="$(grep -o 'PHASE18_SUMMARY:[^ ]*' "$_p18_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p18_line" ]]; then
+    _p18_data="${_p18_line#PHASE18_SUMMARY:}"
+    phase18_verdict="$(printf '%s' "$_p18_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase18_resonance_signature="$(printf '%s' "$_p18_data" | grep -o 'resonance_signature=[^|]*' | cut -d= -f2)"
+    phase18_inference_signature="$(printf '%s' "$_p18_data" | grep -o 'inference_signature=[^|]*' | cut -d= -f2)"
+    phase18_telemetry_digest="$(printf '%s' "$_p18_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase18_replay_loops="$(printf '%s' "$_p18_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase18_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase18_replay_loops="0"
+fi
+
+phase18_field_idx=-1
+phase18_inference_idx=-1
+phase18_replay_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase18_resonance_field_invariants" ]]; then
+    phase18_field_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase18_inference_gate" ]]; then
+    phase18_inference_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase18_replay_gate" ]]; then
+    phase18_replay_idx="$i"
+  fi
+done
+
+phase18_field_result="FAIL"
+phase18_inference_result="FAIL"
+phase18_replay_result="FAIL"
+if [[ "$phase18_field_idx" -ge 0 ]]; then
+  phase18_field_result="${results[$phase18_field_idx]}"
+fi
+if [[ "$phase18_inference_idx" -ge 0 ]]; then
+  phase18_inference_result="${results[$phase18_inference_idx]}"
+fi
+if [[ "$phase18_replay_idx" -ge 0 ]]; then
+  phase18_replay_result="${results[$phase18_replay_idx]}"
+fi
+
+if [[ "$phase18_field_result" == "PASS" ]] \
+  && [[ "$phase18_inference_result" == "PASS" ]] \
+  && [[ "$phase18_replay_result" == "PASS" ]] \
+  && [[ "$phase18_verdict" == "true" ]]; then
+  phase18_top_level_result="PASS"
+fi
+
+# Extract Phase 19 telemetry from test log
+phase19_verdict="unknown"
+phase19_arbitration_signature="unknown"
+phase19_decision_signature="unknown"
+phase19_telemetry_digest="unknown"
+phase19_replay_loops="0"
+_p19_log="$OUT_DIR/phase19_conflict_resolution_replay_gate.log"
+if [[ -f "$_p19_log" ]]; then
+  _p19_line="$(grep -o 'PHASE19_SUMMARY:[^ ]*' "$_p19_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p19_line" ]]; then
+    _p19_data="${_p19_line#PHASE19_SUMMARY:}"
+    phase19_verdict="$(printf '%s' "$_p19_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase19_arbitration_signature="$(printf '%s' "$_p19_data" | grep -o 'arbitration_signature=[^|]*' | cut -d= -f2)"
+    phase19_decision_signature="$(printf '%s' "$_p19_data" | grep -o 'decision_signature=[^|]*' | cut -d= -f2)"
+    phase19_telemetry_digest="$(printf '%s' "$_p19_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase19_replay_loops="$(printf '%s' "$_p19_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase19_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase19_replay_loops="0"
+fi
+
+phase19_field_idx=-1
+phase19_selection_idx=-1
+phase19_replay_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase19_arbitration_field_invariants" ]]; then
+    phase19_field_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase19_operator_selection_gate" ]]; then
+    phase19_selection_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase19_conflict_resolution_replay_gate" ]]; then
+    phase19_replay_idx="$i"
+  fi
+done
+
+phase19_field_result="FAIL"
+phase19_selection_result="FAIL"
+phase19_replay_result="FAIL"
+if [[ "$phase19_field_idx" -ge 0 ]]; then
+  phase19_field_result="${results[$phase19_field_idx]}"
+fi
+if [[ "$phase19_selection_idx" -ge 0 ]]; then
+  phase19_selection_result="${results[$phase19_selection_idx]}"
+fi
+if [[ "$phase19_replay_idx" -ge 0 ]]; then
+  phase19_replay_result="${results[$phase19_replay_idx]}"
+fi
+
+if [[ "$phase19_field_result" == "PASS" ]] \
+  && [[ "$phase19_selection_result" == "PASS" ]] \
+  && [[ "$phase19_replay_result" == "PASS" ]] \
+  && [[ "$phase19_verdict" == "true" ]]; then
+  phase19_top_level_result="PASS"
+fi
+
+# Extract Phase 20 telemetry from test log
+phase20_verdict="unknown"
+phase20_correction_signature="unknown"
+phase20_stabilization_signature="unknown"
+phase20_telemetry_digest="unknown"
+phase20_replay_loops="0"
+_p20_log="$OUT_DIR/phase20_stabilization_replay_gate.log"
+if [[ -f "$_p20_log" ]]; then
+  _p20_line="$(grep -o 'PHASE20_SUMMARY:[^ ]*' "$_p20_log" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$_p20_line" ]]; then
+    _p20_data="${_p20_line#PHASE20_SUMMARY:}"
+    phase20_verdict="$(printf '%s' "$_p20_data" | grep -o 'verdict=[^|]*' | cut -d= -f2)"
+    phase20_correction_signature="$(printf '%s' "$_p20_data" | grep -o 'correction_signature=[^|]*' | cut -d= -f2)"
+    phase20_stabilization_signature="$(printf '%s' "$_p20_data" | grep -o 'stabilization_signature=[^|]*' | cut -d= -f2)"
+    phase20_telemetry_digest="$(printf '%s' "$_p20_data" | grep -o 'telemetry_digest=[^|]*' | cut -d= -f2)"
+    phase20_replay_loops="$(printf '%s' "$_p20_data" | grep -o 'replay_loops=[^|]*' | cut -d= -f2)"
+  fi
+fi
+
+if ! [[ "$phase20_replay_loops" =~ ^[0-9]+$ ]]; then
+  phase20_replay_loops="0"
+fi
+
+phase20_drift_idx=-1
+phase20_repair_idx=-1
+phase20_replay_idx=-1
+for i in "${!labels[@]}"; do
+  if [[ "${labels[$i]}" == "phase20_drift_correction_invariants" ]]; then
+    phase20_drift_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase20_repair_gate" ]]; then
+    phase20_repair_idx="$i"
+  fi
+  if [[ "${labels[$i]}" == "phase20_stabilization_replay_gate" ]]; then
+    phase20_replay_idx="$i"
+  fi
+done
+
+phase20_drift_result="FAIL"
+phase20_repair_result="FAIL"
+phase20_replay_result="FAIL"
+if [[ "$phase20_drift_idx" -ge 0 ]]; then
+  phase20_drift_result="${results[$phase20_drift_idx]}"
+fi
+if [[ "$phase20_repair_idx" -ge 0 ]]; then
+  phase20_repair_result="${results[$phase20_repair_idx]}"
+fi
+if [[ "$phase20_replay_idx" -ge 0 ]]; then
+  phase20_replay_result="${results[$phase20_replay_idx]}"
+fi
+
+if [[ "$phase20_drift_result" == "PASS" ]] \
+  && [[ "$phase20_repair_result" == "PASS" ]] \
+  && [[ "$phase20_replay_result" == "PASS" ]] \
+  && [[ "$phase20_verdict" == "true" ]]; then
+  phase20_top_level_result="PASS"
+fi
+
 # Generate JSON summary first so regression detection can work
 {
   echo "{";
@@ -947,6 +1145,87 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
+# Patch phase18 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase18_verdict" "$phase18_resonance_signature" "$phase18_inference_signature" "$phase18_telemetry_digest" "$phase18_replay_loops" <<'PHASE18_PATCH_PY'
+import json, sys
+
+json_path, verdict, resonance_signature, inference_signature, telemetry_digest, replay_loops = sys.argv[1:7]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase18'] = {
+        "phase18_verdict": verdict,
+        "resonance_signature": resonance_signature,
+        "inference_signature": inference_signature,
+        "telemetry_digest": telemetry_digest,
+        "replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase18: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE18_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase18 JSON patch failed" >&2
+  exit 1
+fi
+
+# Patch phase19 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase19_verdict" "$phase19_arbitration_signature" "$phase19_decision_signature" "$phase19_telemetry_digest" "$phase19_replay_loops" <<'PHASE19_PATCH_PY'
+import json, sys
+
+json_path, verdict, arbitration_signature, decision_signature, telemetry_digest, replay_loops = sys.argv[1:7]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase19'] = {
+        "phase19_verdict": verdict,
+        "arbitration_signature": arbitration_signature,
+        "decision_signature": decision_signature,
+        "telemetry_digest": telemetry_digest,
+        "replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase19: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE19_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase19 JSON patch failed" >&2
+  exit 1
+fi
+
+# Patch phase20 fields into JSON summary
+python3 - "$JSON_SUMMARY_PATH" "$phase20_verdict" "$phase20_correction_signature" "$phase20_stabilization_signature" "$phase20_telemetry_digest" "$phase20_replay_loops" <<'PHASE20_PATCH_PY'
+import json, sys
+
+json_path, verdict, correction_signature, stabilization_signature, telemetry_digest, replay_loops = sys.argv[1:7]
+
+try:
+    with open(json_path, 'r') as f:
+        doc = json.load(f)
+    doc['phase20'] = {
+        "phase20_verdict": verdict,
+        "correction_signature": correction_signature,
+        "stabilization_signature": stabilization_signature,
+        "telemetry_digest": telemetry_digest,
+        "replay_loops": int(replay_loops),
+    }
+    with open(json_path, 'w') as f:
+        json.dump(doc, f, indent=2)
+except Exception as e:
+    print(f"error patching phase20: {e}", file=sys.stderr)
+    sys.exit(1)
+PHASE20_PATCH_PY
+if [[ $? -ne 0 ]]; then
+  echo "error: phase20 JSON patch failed" >&2
+  exit 1
+fi
+
 # Schema-versioned regression detection (now with JSON available)
 if [[ "$REGRESSION_ENABLED" == "1" ]]; then
   if [[ -f "$REGRESSION_BASELINE_PATH" ]]; then
@@ -1037,6 +1316,9 @@ printf "%-32s | %s\n" "$phase14_top_level_label" "$phase14_top_level_result"
 printf "%-32s | %s\n" "$phase15_top_level_label" "$phase15_top_level_result"
 printf "%-32s | %s\n" "$phase16_top_level_label" "$phase16_top_level_result"
 printf "%-32s | %s\n" "$phase17_top_level_label" "$phase17_top_level_result"
+printf "%-32s | %s\n" "$phase18_top_level_label" "$phase18_top_level_result"
+printf "%-32s | %s\n" "$phase19_top_level_label" "$phase19_top_level_result"
+printf "%-32s | %s\n" "$phase20_top_level_label" "$phase20_top_level_result"
 if [[ -n "$schema_deprecation_warning_result" ]]; then
   printf "%-32s | %s\n" "$schema_deprecation_warning_label" "$schema_deprecation_warning_result"
 fi

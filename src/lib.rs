@@ -58,6 +58,9 @@ pub mod cognition {
     pub mod phase15_two_qubit_semantic_binding;
     pub mod phase16_thought_path_trajectories;
     pub mod phase17_semantic_measurement_operators;
+    pub mod phase18_resonance_inference;
+    pub mod phase19_arbitration_operators;
+    pub mod phase20_self_correction_operators;
     pub mod phase10_runtime_adaptation;
 
     pub use constraint::ConstraintKind;
@@ -236,6 +239,47 @@ pub mod cognition {
         phase17_measure_semantic,
         phase17_measure_trajectory,
         phase17_validate_semantic_measurement_invariants,
+    };
+    pub use phase18_resonance_inference::{
+        Phase18InfluenceOperator,
+        Phase18InferenceStep,
+        Phase18InferenceTrajectory,
+        Phase18ResonanceField,
+        phase18_build_resonance_field,
+        phase18_emit_inference_telemetry,
+        phase18_emit_resonance_telemetry,
+        phase18_infer_step,
+        phase18_infer_trajectory,
+        phase18_select_influence_operator,
+        phase18_validate_inference_trajectory_invariants,
+        phase18_validate_resonance_field_invariants,
+    };
+    pub use phase19_arbitration_operators::{
+        Phase19ArbitrationCandidate,
+        Phase19ArbitrationDecision,
+        Phase19ArbitrationField,
+        Phase19MetaOperator,
+        phase19_build_arbitration_field,
+        phase19_candidate_from_inference,
+        phase19_emit_decision_telemetry,
+        phase19_emit_field_telemetry,
+        phase19_resolve_inference_conflict,
+        phase19_select_winner,
+        phase19_validate_arbitration_decision_invariants,
+        phase19_validate_arbitration_field_invariants,
+    };
+    pub use phase20_self_correction_operators::{
+        Phase20CorrectionOperator,
+        Phase20CorrectionPlan,
+        Phase20DriftReport,
+        Phase20StabilizedInference,
+        phase20_apply_self_correction,
+        phase20_build_correction_plan,
+        phase20_detect_drift,
+        phase20_emit_correction_telemetry,
+        phase20_emit_stabilization_telemetry,
+        phase20_validate_correction_plan_invariants,
+        phase20_validate_stabilized_inference_invariants,
     };
     pub use phase10_runtime_adaptation::{
         Phase10RuntimeAdaptationBridge,
@@ -468,6 +512,41 @@ pub use cognition::{
     phase17_measure_semantic,
     phase17_measure_trajectory,
     phase17_validate_semantic_measurement_invariants,
+    Phase18InfluenceOperator,
+    Phase18InferenceStep,
+    Phase18InferenceTrajectory,
+    Phase18ResonanceField,
+    phase18_build_resonance_field,
+    phase18_emit_inference_telemetry,
+    phase18_emit_resonance_telemetry,
+    phase18_infer_step,
+    phase18_infer_trajectory,
+    phase18_select_influence_operator,
+    phase18_validate_inference_trajectory_invariants,
+    phase18_validate_resonance_field_invariants,
+    Phase19ArbitrationCandidate,
+    Phase19ArbitrationDecision,
+    Phase19ArbitrationField,
+    Phase19MetaOperator,
+    phase19_build_arbitration_field,
+    phase19_candidate_from_inference,
+    phase19_emit_decision_telemetry,
+    phase19_emit_field_telemetry,
+    phase19_resolve_inference_conflict,
+    phase19_select_winner,
+    phase19_validate_arbitration_decision_invariants,
+    phase19_validate_arbitration_field_invariants,
+    Phase20CorrectionOperator,
+    Phase20CorrectionPlan,
+    Phase20DriftReport,
+    Phase20StabilizedInference,
+    phase20_apply_self_correction,
+    phase20_build_correction_plan,
+    phase20_detect_drift,
+    phase20_emit_correction_telemetry,
+    phase20_emit_stabilization_telemetry,
+    phase20_validate_correction_plan_invariants,
+    phase20_validate_stabilized_inference_invariants,
     Phase10RuntimeAdaptationBridge,
     Phase10Slice2RoutingAcceptancePolicy,
     Phase10Slice4RuntimeContinuityPolicy,

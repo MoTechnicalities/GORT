@@ -276,6 +276,60 @@
         "replay_loops": { "type": "integer", "minimum": 0 }
       }
     },
+    "phase18": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase18_verdict",
+        "resonance_signature",
+        "inference_signature",
+        "telemetry_digest",
+        "replay_loops"
+      ],
+      "properties": {
+        "phase18_verdict": { "type": "string", "minLength": 1 },
+        "resonance_signature": { "type": "string", "minLength": 1 },
+        "inference_signature": { "type": "string", "minLength": 1 },
+        "telemetry_digest": { "type": "string", "minLength": 1 },
+        "replay_loops": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "phase19": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase19_verdict",
+        "arbitration_signature",
+        "decision_signature",
+        "telemetry_digest",
+        "replay_loops"
+      ],
+      "properties": {
+        "phase19_verdict": { "type": "string", "minLength": 1 },
+        "arbitration_signature": { "type": "string", "minLength": 1 },
+        "decision_signature": { "type": "string", "minLength": 1 },
+        "telemetry_digest": { "type": "string", "minLength": 1 },
+        "replay_loops": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "phase20": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase20_verdict",
+        "correction_signature",
+        "stabilization_signature",
+        "telemetry_digest",
+        "replay_loops"
+      ],
+      "properties": {
+        "phase20_verdict": { "type": "string", "minLength": 1 },
+        "correction_signature": { "type": "string", "minLength": 1 },
+        "stabilization_signature": { "type": "string", "minLength": 1 },
+        "telemetry_digest": { "type": "string", "minLength": 1 },
+        "replay_loops": { "type": "integer", "minimum": 0 }
+      }
+    },
     "regression_delta": {
       "type": "object",
       "additionalProperties": false,

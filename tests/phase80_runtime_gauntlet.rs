@@ -39,6 +39,19 @@ use gort::{
     phase17_emit_measurement_telemetry, phase17_measure_binding,
     phase17_measure_semantic, phase17_measure_trajectory,
     phase17_validate_semantic_measurement_invariants,
+    Phase18InfluenceOperator,
+    phase18_build_resonance_field, phase18_emit_inference_telemetry,
+    phase18_emit_resonance_telemetry, phase18_infer_step, phase18_infer_trajectory,
+    phase18_select_influence_operator, phase18_validate_inference_trajectory_invariants,
+    phase18_validate_resonance_field_invariants,
+    Phase19MetaOperator,
+    phase19_emit_decision_telemetry, phase19_emit_field_telemetry,
+    phase19_resolve_inference_conflict, phase19_validate_arbitration_decision_invariants,
+    phase19_validate_arbitration_field_invariants,
+    phase20_apply_self_correction, phase20_build_correction_plan,
+    phase20_detect_drift, phase20_emit_correction_telemetry,
+    phase20_emit_stabilization_telemetry, phase20_validate_correction_plan_invariants,
+    phase20_validate_stabilized_inference_invariants,
     phase10_build_runtime_adaptation_bridge, phase10_run_runtime_adaptation_episode,
     phase10_emit_runtime_adaptation_telemetry,
     Phase10Slice2RoutingAcceptancePolicy, phase10_validate_slice2_routing_acceptance_gate,
@@ -3533,4 +3546,415 @@ fn gauntlet_phase17_semantic_replay_gate_is_byte_stable() {
         baseline_digest,
         PHASE17_REPLAY_LOOPS,
     );
+}
+
+// ── Phase 18 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase18_resonance_field_invariants_are_enforced() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+    let ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+    ];
+    let trajectory = phase16_trace_thought_path(&initial, &ops).expect("trajectory");
+
+    let field = phase18_build_resonance_field(
+        &trajectory.steps[0].op_signature,
+        &trajectory.final_binding_signature,
+        &trajectory.trajectory_signature,
+    )
+    .expect("field");
+
+    phase18_validate_resonance_field_invariants(&field).expect("field invariants");
+    let telemetry = phase18_emit_resonance_telemetry(&field);
+    assert!(telemetry.contains("well_formed=true"));
+    assert!(field.total_weight > 0);
+}
+
+#[test]
+fn gauntlet_phase18_inference_gate_is_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+    let ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::PauliX),
+    ];
+    let trajectory = phase16_trace_thought_path(&initial, &ops).expect("trajectory");
+
+    let field = phase18_build_resonance_field(
+        &trajectory.steps[0].op_signature,
+        &trajectory.final_binding_signature,
+        &trajectory.trajectory_signature,
+    )
+    .expect("field");
+
+    let influence = phase18_select_influence_operator(&field).expect("influence");
+    assert!(
+        influence == Phase18InfluenceOperator::FavorStability
+            || influence == Phase18InfluenceOperator::FavorEntangling
+            || influence == Phase18InfluenceOperator::FavorContrast
+            || influence == Phase18InfluenceOperator::DampenConflict
+    );
+
+    let step_a = phase18_infer_step(&trajectory.steps[0], &field, influence).expect("step a");
+    let step_b = phase18_infer_step(&trajectory.steps[0], &field, influence).expect("step b");
+    assert_eq!(step_a, step_b);
+
+    let inferred_a = phase18_infer_trajectory(&trajectory, &field).expect("trajectory a");
+    let inferred_b = phase18_infer_trajectory(&trajectory, &field).expect("trajectory b");
+    assert_eq!(inferred_a, inferred_b);
+    phase18_validate_inference_trajectory_invariants(&inferred_a).expect("trajectory invariants");
+}
+
+#[test]
+fn gauntlet_phase18_replay_gate_is_byte_stable() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("q1");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("initial");
+    let ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::FixedHadamard),
+    ];
+    let trajectory = phase16_trace_thought_path(&initial, &ops).expect("trajectory");
+
+    let field = phase18_build_resonance_field(
+        &trajectory.steps[0].op_signature,
+        &trajectory.final_binding_signature,
+        &trajectory.trajectory_signature,
+    )
+    .expect("field");
+
+    let baseline = phase18_infer_trajectory(&trajectory, &field).expect("baseline");
+    phase18_validate_inference_trajectory_invariants(&baseline).expect("baseline invariants");
+    let baseline_telemetry = phase18_emit_inference_telemetry(&baseline);
+
+    const PHASE18_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE18_REPLAY_LOOPS {
+        let current = phase18_infer_trajectory(&trajectory, &field).expect("current");
+        assert_eq!(current, baseline);
+        assert_eq!(phase18_emit_inference_telemetry(&current), baseline_telemetry);
+    }
+
+    println!(
+        "PHASE18_SUMMARY:verdict={}|resonance_signature={}|inference_signature={}|telemetry_digest={}|replay_loops={}",
+        baseline.trajectory_well_formed,
+        baseline.resonance_signature,
+        baseline.inference_signature,
+        baseline.telemetry_digest,
+        PHASE18_REPLAY_LOOPS,
+    );
+}
+
+// ── Phase 19 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase19_arbitration_field_invariants_are_enforced() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+    let ops = vec![
+        phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+        phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+    ];
+    let trajectory = phase16_trace_thought_path(&initial, &ops).expect("trajectory");
+    let field18 = phase18_build_resonance_field(
+        &trajectory.steps[0].op_signature,
+        &trajectory.final_binding_signature,
+        &trajectory.trajectory_signature,
+    )
+    .expect("phase18 field");
+    let inference = phase18_infer_trajectory(&trajectory, &field18).expect("inference");
+
+    let (field19, decision19) = phase19_resolve_inference_conflict(
+        &[inference.clone()],
+        Phase19MetaOperator::ConflictResolver,
+    )
+    .expect("resolve");
+
+    phase19_validate_arbitration_field_invariants(&field19).expect("field invariants");
+    phase19_validate_arbitration_decision_invariants(&decision19).expect("decision invariants");
+    assert_eq!(field19.candidates.len(), 1);
+}
+
+#[test]
+fn gauntlet_phase19_operator_selection_gate_is_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("q1");
+
+    let initial_a = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial a");
+    let traj_a = phase16_trace_thought_path(
+        &initial_a,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+        ],
+    )
+    .expect("traj a");
+    let field18_a = phase18_build_resonance_field(
+        &traj_a.steps[0].op_signature,
+        &traj_a.final_binding_signature,
+        &traj_a.trajectory_signature,
+    )
+    .expect("field18 a");
+    let inference_a = phase18_infer_trajectory(&traj_a, &field18_a).expect("inf a");
+
+    let initial_b = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("initial b");
+    let traj_b = phase16_trace_thought_path(
+        &initial_b,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::FixedHadamard),
+        ],
+    )
+    .expect("traj b");
+    let field18_b = phase18_build_resonance_field(
+        &traj_b.steps[0].op_signature,
+        &traj_b.final_binding_signature,
+        &traj_b.trajectory_signature,
+    )
+    .expect("field18 b");
+    let inference_b = phase18_infer_trajectory(&traj_b, &field18_b).expect("inf b");
+
+    let set = vec![inference_a, inference_b];
+    let (field_a, decision_a) = phase19_resolve_inference_conflict(
+        &set,
+        Phase19MetaOperator::SemanticCoherenceFirst,
+    )
+    .expect("resolve a");
+    let (field_b, decision_b) = phase19_resolve_inference_conflict(
+        &set,
+        Phase19MetaOperator::SemanticCoherenceFirst,
+    )
+    .expect("resolve b");
+
+    assert_eq!(field_a, field_b);
+    assert_eq!(decision_a, decision_b);
+}
+
+#[test]
+fn gauntlet_phase19_conflict_resolution_replay_gate_is_byte_stable() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("q1");
+
+    let initial_a = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial a");
+    let traj_a = phase16_trace_thought_path(
+        &initial_a,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+        ],
+    )
+    .expect("traj a");
+    let field18_a = phase18_build_resonance_field(
+        &traj_a.steps[0].op_signature,
+        &traj_a.final_binding_signature,
+        &traj_a.trajectory_signature,
+    )
+    .expect("field18 a");
+    let inference_a = phase18_infer_trajectory(&traj_a, &field18_a).expect("inf a");
+
+    let initial_b = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("initial b");
+    let traj_b = phase16_trace_thought_path(
+        &initial_b,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::FixedHadamard),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliX),
+        ],
+    )
+    .expect("traj b");
+    let field18_b = phase18_build_resonance_field(
+        &traj_b.steps[0].op_signature,
+        &traj_b.final_binding_signature,
+        &traj_b.trajectory_signature,
+    )
+    .expect("field18 b");
+    let inference_b = phase18_infer_trajectory(&traj_b, &field18_b).expect("inf b");
+
+    let inferences = vec![inference_a, inference_b];
+    let (baseline_field, baseline_decision) = phase19_resolve_inference_conflict(
+        &inferences,
+        Phase19MetaOperator::ConflictResolver,
+    )
+    .expect("baseline");
+    let baseline_field_telemetry = phase19_emit_field_telemetry(&baseline_field);
+    let baseline_decision_telemetry = phase19_emit_decision_telemetry(&baseline_decision);
+
+    const PHASE19_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE19_REPLAY_LOOPS {
+        let (field, decision) = phase19_resolve_inference_conflict(
+            &inferences,
+            Phase19MetaOperator::ConflictResolver,
+        )
+        .expect("replay");
+        assert_eq!(field, baseline_field);
+        assert_eq!(decision, baseline_decision);
+        assert_eq!(phase19_emit_field_telemetry(&field), baseline_field_telemetry);
+        assert_eq!(
+            phase19_emit_decision_telemetry(&decision),
+            baseline_decision_telemetry,
+        );
+    }
+
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        baseline_field_telemetry.hash(&mut h);
+        baseline_decision_telemetry.hash(&mut h);
+        let digest = format!("{:016x}", h.finish());
+        println!(
+            "PHASE19_SUMMARY:verdict={}|arbitration_signature={}|decision_signature={}|telemetry_digest={}|replay_loops={}",
+            true,
+            baseline_field.arbitration_signature,
+            baseline_decision.decision_signature,
+            digest,
+            PHASE19_REPLAY_LOOPS,
+        );
+    }
+}
+
+// ── Phase 20 gauntlet gates ───────────────────────────────────────────────────
+
+#[test]
+fn gauntlet_phase20_drift_correction_invariants_are_enforced() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+    let trajectory = phase16_trace_thought_path(
+        &initial,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+        ],
+    )
+    .expect("trajectory");
+    let field18 = phase18_build_resonance_field(
+        &trajectory.steps[0].op_signature,
+        &trajectory.final_binding_signature,
+        &trajectory.trajectory_signature,
+    )
+    .expect("field18");
+    let inference = phase18_infer_trajectory(&trajectory, &field18).expect("inference");
+    let drift = phase20_detect_drift(&inference).expect("drift");
+
+    assert!(!drift.drift_signature.is_empty());
+    assert!(drift.invariant_violation_count >= 0);
+}
+
+#[test]
+fn gauntlet_phase20_repair_gate_is_deterministic() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let initial = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial");
+    let trajectory = phase16_trace_thought_path(
+        &initial,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+        ],
+    )
+    .expect("trajectory");
+    let field18 = phase18_build_resonance_field(
+        &trajectory.steps[0].op_signature,
+        &trajectory.final_binding_signature,
+        &trajectory.trajectory_signature,
+    )
+    .expect("field18");
+    let inference = phase18_infer_trajectory(&trajectory, &field18).expect("inference");
+    let (_, decision) = phase19_resolve_inference_conflict(
+        &[inference.clone()],
+        Phase19MetaOperator::ConflictResolver,
+    )
+    .expect("resolve");
+
+    let plan_a = phase20_build_correction_plan(&inference, &decision).expect("plan a");
+    let plan_b = phase20_build_correction_plan(&inference, &decision).expect("plan b");
+    assert_eq!(plan_a, plan_b);
+    phase20_validate_correction_plan_invariants(&plan_a).expect("plan invariants");
+
+    let stabilized_a = phase20_apply_self_correction(&inference, &plan_a).expect("stab a");
+    let stabilized_b = phase20_apply_self_correction(&inference, &plan_a).expect("stab b");
+    assert_eq!(stabilized_a, stabilized_b);
+    phase20_validate_stabilized_inference_invariants(&stabilized_a)
+        .expect("stabilized invariants");
+}
+
+#[test]
+fn gauntlet_phase20_stabilization_replay_gate_is_byte_stable() {
+    let q0 = phase13_build_qubit_state(0, 0, 1).expect("q0");
+    let q1 = phase13_build_qubit_state(0, 0, -1).expect("q1");
+
+    let initial_a = phase15_build_two_qubit_state(q0.clone(), q0.clone()).expect("initial a");
+    let traj_a = phase16_trace_thought_path(
+        &initial_a,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::ControlledX),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q2, Phase13QubitUnaryOp::PauliZ),
+        ],
+    )
+    .expect("traj a");
+    let field18_a = phase18_build_resonance_field(
+        &traj_a.steps[0].op_signature,
+        &traj_a.final_binding_signature,
+        &traj_a.trajectory_signature,
+    )
+    .expect("field18 a");
+    let inference_a = phase18_infer_trajectory(&traj_a, &field18_a).expect("inf a");
+
+    let initial_b = phase15_build_two_qubit_state(q0.clone(), q1.clone()).expect("initial b");
+    let traj_b = phase16_trace_thought_path(
+        &initial_b,
+        &[
+            phase16_build_two_qubit_op(Phase15TwoQubitOp::Swap),
+            phase16_build_single_qubit_op(Phase16QubitTarget::Q1, Phase13QubitUnaryOp::FixedHadamard),
+        ],
+    )
+    .expect("traj b");
+    let field18_b = phase18_build_resonance_field(
+        &traj_b.steps[0].op_signature,
+        &traj_b.final_binding_signature,
+        &traj_b.trajectory_signature,
+    )
+    .expect("field18 b");
+    let inference_b = phase18_infer_trajectory(&traj_b, &field18_b).expect("inf b");
+
+    let (_, decision) = phase19_resolve_inference_conflict(
+        &[inference_a.clone(), inference_b.clone()],
+        Phase19MetaOperator::ConflictResolver,
+    )
+    .expect("resolve");
+
+    let plan = phase20_build_correction_plan(&inference_a, &decision).expect("plan");
+    let baseline = phase20_apply_self_correction(&inference_a, &plan).expect("baseline");
+    let correction_telemetry = phase20_emit_correction_telemetry(&plan);
+    let stabilization_telemetry = phase20_emit_stabilization_telemetry(&baseline);
+
+    const PHASE20_REPLAY_LOOPS: usize = 100;
+    for _ in 0..PHASE20_REPLAY_LOOPS {
+        let current = phase20_apply_self_correction(&inference_a, &plan).expect("current");
+        assert_eq!(current, baseline);
+        assert_eq!(phase20_emit_stabilization_telemetry(&current), stabilization_telemetry);
+        assert_eq!(phase20_emit_correction_telemetry(&plan), correction_telemetry);
+    }
+
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        correction_telemetry.hash(&mut h);
+        stabilization_telemetry.hash(&mut h);
+        let digest = format!("{:016x}", h.finish());
+        println!(
+            "PHASE20_SUMMARY:verdict={}|correction_signature={}|stabilization_signature={}|telemetry_digest={}|replay_loops={}",
+            true,
+            plan.correction_signature,
+            baseline.stabilization_signature,
+            digest,
+            PHASE20_REPLAY_LOOPS,
+        );
+    }
 }
